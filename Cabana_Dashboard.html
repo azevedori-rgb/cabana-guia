@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cabana — Central de Gestão</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Barlow+Condensed:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#3a9e3a;--green-dark:#2d7d2d;--green-light:#e8f5e8;
+  --bg:#f5f7f5;--surface:#fff;--border:#d4e8d4;
+  --text:#1a2a1a;--muted:#6b826b;--r:10px;
+}
+body{font-family:'Nunito',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── LOGIN ── */
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--green)}
+.login-box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 32px #00000022}
+.login-logo{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;color:var(--green);margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:24px;font-weight:600}
+.login-label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:block}
+.login-input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-family:'Nunito',sans-serif;font-size:15px;outline:none;transition:border-color .15s;margin-bottom:16px}
+.login-input:focus{border-color:var(--green)}
+.login-btn{width:100%;background:var(--green);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:background .15s}
+.login-btn:hover{background:var(--green-dark)}
+.login-err{color:#e8613c;font-size:12px;font-weight:700;margin-top:8px;display:none}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none}
+.hdr{background:var(--green);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.hdr-logo{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:#fff}
+.hdr-logo span{opacity:.6;font-size:14px;font-weight:600;margin-left:8px}
+.hdr-right{display:flex;align-items:center;gap:12px}
+.hdr-date{font-size:12px;color:#ffffffbb;font-weight:600}
+.logout-btn{background:#ffffff22;border:1px solid #ffffff44;border-radius:7px;padding:5px 12px;color:#fff;font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer}
+
+.content{padding:20px 24px;max-width:1200px;margin:0 auto}
+
+/* KPI cards */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:0 1px 4px #00000008}
+.kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;color:var(--green-dark);line-height:1}
+.kpi-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* Section title */
+.sec-title{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec-badge{background:var(--green-light);border:1px solid var(--border);border-radius:50px;padding:2px 10px;font-size:11px;font-weight:700;color:var(--green-dark)}
+
+/* Alertas lojas inativas */
+.alert-box{background:#fff8e6;border:1.5px solid #f5c842;border-radius:var(--r);padding:12px 16px;margin-bottom:20px}
+.alert-title{font-size:13px;font-weight:800;color:#92640a;margin-bottom:6px}
+.alert-lojas{display:flex;gap:6px;flex-wrap:wrap}
+.alert-loja{background:#fef3c7;border:1px solid #f5d87a;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;color:#92640a}
+
+/* Tabelas */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:20px;box-shadow:0 1px 4px #00000008}
+.card-header{padding:12px 16px;border-bottom:1px solid var(--border);font-weight:800;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--green-light);padding:8px 12px;text-align:left;font-size:10px;font-weight:800;color:var(--green-dark);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+tbody td{padding:8px 12px;border-bottom:1px solid #f0f0f0;vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fbf8}
+.badge-turno{display:inline-block;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:800}
+.badge-almoco{background:#fef9c3;color:#854d0e}
+.badge-jantar{background:#ede9fe;color:#4c1d95}
+.badge-madrugada{background:#e0e7ff;color:#1e40af}
+.num-pill{background:var(--green-light);color:var(--green-dark);border-radius:5px;padding:2px 8px;font-weight:800;font-size:11px}
+
+/* Ranking */
+.ranking-item{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid #f0f0f0}
+.ranking-item:last-child{border-bottom:none}
+.rank-pos{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:var(--green);min-width:28px}
+.rank-name{font-weight:700;font-size:13px;flex:1}
+.rank-bar-wrap{width:140px;height:8px;background:#e8f5e8;border-radius:4px;overflow:hidden}
+.rank-bar{height:100%;background:var(--green);border-radius:4px;transition:width .6s}
+.rank-count{font-size:11px;font-weight:800;color:var(--green-dark);min-width:40px;text-align:right}
+
+/* Filtros */
+.filtros{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.filtro-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:6px 14px;font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted);transition:all .15s}
+.filtro-btn.on{background:var(--green-light);border-color:var(--green);color:var(--green-dark)}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:var(--muted);font-weight:600}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Empty state */
+.empty{text-align:center;padding:32px;color:var(--muted)}
+.empty-icon{font-size:36px;margin-bottom:8px}
+
+/* Config */
+.config-box{background:var(--surface);border:1.5px dashed var(--border);border-radius:var(--r);padding:20px;margin-bottom:20px}
+.config-title{font-weight:800;font-size:14px;margin-bottom:12px;color:var(--text)}
+.config-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.config-label{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.config-input{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 12px;font-family:'Nunito',sans-serif;font-size:13px;outline:none}
+.config-input:focus{border-color:var(--green)}
+.config-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:9px 20px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;margin-top:8px}
+.config-status{font-size:12px;margin-top:8px;font-weight:600}
+.config-status.ok{color:var(--green)}
+.config-status.err{color:#e8613c}
+
+@media(max-width:768px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .config-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">CABANA GESTÃO</div>
+    <div class="login-sub">Central de Monitoramento — Acesso Restrito</div>
+    <label class="login-label">Senha</label>
+    <input class="login-input" type="password" id="senha-input" placeholder="Digite a senha..." onkeydown="if(event.key==='Enter')fazerLogin()">
+    <button class="login-btn" onclick="fazerLogin()">Entrar</button>
+    <div class="login-err" id="login-err">Senha incorreta. Tente novamente.</div>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ── -->
+<div id="dashboard">
+  <div class="hdr">
+    <div class="hdr-logo">CABANA GESTÃO <span>Central de Monitoramento</span></div>
+    <div class="hdr-right">
+      <div class="hdr-date" id="hdr-date"></div>
+      <button class="logout-btn" onclick="carregarTudo()" style="margin-right:6px">↻ Atualizar</button>
+      <button class="logout-btn" onclick="abrirConfig()" style="margin-right:6px">⚙️ Lojas</button>
+      <button class="logout-btn" onclick="logout()">Sair</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- Config Supabase -->
+    <div class="config-box" id="config-box" style="display:none">
+      <div class="config-title">⚙️ Configuração do banco de dados (preencha uma vez)</div>
+      <div class="config-grid">
+        <div>
+          <div class="config-label">Supabase URL</div>
+          <input class="config-input" id="cfg-url" placeholder="https://xxxx.supabase.co">
+        </div>
+        <div>
+          <div class="config-label">Supabase Anon Key</div>
+          <input class="config-input" id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIs...">
+        </div>
+      </div>
+      <button class="config-btn" onclick="salvarConfig()">Salvar e Conectar</button>
+      <div class="config-status" id="cfg-status"></div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="kpi-val" id="kpi-hoje">—</div>
+        <div class="kpi-label">Impressões hoje</div>
+        <div class="kpi-sub" id="kpi-hoje-sub">aguardando dados</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" id="kpi-semana">—</div>
+        <div class="kpi-label">Esta semana</div>
+        <div class="kpi-sub" id="kpi-semana-sub">últimos 7 dias</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" id="kpi-lojas-ativas">—</div>
+        <div class="kpi-label">Lojas ativas hoje</div>
+        <div class="kpi-sub" id="kpi-lojas-sub">de 28 lojas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" id="kpi-media">—</div>
+        <div class="kpi-label">Média pessoas/turno</div>
+        <div class="kpi-sub">salão + cozinha</div>
+      </div>
+    </div>
+
+    <!-- Alerta lojas inativas -->
+    <div class="alert-box" id="alert-inativas" style="display:none">
+      <div class="alert-title">⚠️ Lojas que não imprimiram hoje</div>
+      <div class="alert-lojas" id="alert-lojas-list"></div>
+    </div>
+
+    <!-- Filtros período + regional -->
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+      <div class="filtros" style="margin-bottom:0">
+        <button class="filtro-btn on" onclick="setFiltro('hoje',this)">Hoje</button>
+        <button class="filtro-btn" onclick="setFiltro('semana',this)">Esta semana</button>
+        <button class="filtro-btn" onclick="setFiltro('mes',this)">Este mês</button>
+        <button class="filtro-btn" onclick="setFiltro('tudo',this)">Tudo</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.04em">Regional:</span>
+        <select id="filtro-regional" onchange="setRegional(this.value)" style="border:1.5px solid #d4e8d4;border-radius:8px;padding:6px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;color:#1a2a1a;background:#f8faf8;cursor:pointer;outline:none">
+          <option value="">Todas</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:16px">
+
+      <!-- Tabela de registros -->
+      <div>
+        <div class="card">
+          <div class="card-header">
+            <span>📋 Registros de impressão</span>
+            <span class="sec-badge" id="total-registros">0 registros</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Data/Hora</th>
+                  <th>Loja</th>
+                  <th>Turno</th>
+                  <th>Salão</th>
+                  <th>Cozinha</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody id="tabela-body">
+                <tr><td colspan="6" class="loading"><div class="spinner"></div><br>Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tabela por loja/dia -->
+        <div class="card">
+          <div class="card-header">
+            <span>📊 Resumo por loja</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Loja</th>
+                  <th>Impressões</th>
+                  <th>Média salão</th>
+                  <th>Média cozinha</th>
+                  <th>Último uso</th>
+                </tr>
+              </thead>
+              <tbody id="resumo-body">
+                <tr><td colspan="5" class="loading"><div class="spinner"></div><br>Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna lateral: ranking + turno -->
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-header"><span>🏆 Ranking de lojas</span></div>
+          <div id="ranking-list"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span>🕐 Por turno</span></div>
+          <div id="turno-list" style="padding:12px">
+            <div class="loading"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+    <!-- ── MODAL GESTÃO DE LOJAS ── -->
+    <div id="modal-lojas" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#00000066;z-index:1000;overflow-y:auto">
+      <div style="background:#fff;max-width:700px;margin:40px auto;border-radius:16px;box-shadow:0 8px 32px #00000033;overflow:hidden">
+        <div style="background:#3a9e3a;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-family:'Nunito',sans-serif;font-weight:800;font-size:18px">⚙️ Gerenciar Lojas e Regionais</div>
+          <button onclick="fecharConfig()" style="background:#ffffff22;border:none;color:#fff;font-size:20px;cursor:pointer;border-radius:6px;padding:2px 8px">✕</button>
+        </div>
+        <div style="padding:20px">
+
+          <!-- Adicionar nova loja -->
+          <div style="background:#f0f5f0;border:1px solid #d4e8d4;border-radius:10px;padding:14px;margin-bottom:16px">
+            <div style="font-size:11px;font-weight:800;color:#3a9e3a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Adicionar nova loja</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="nova-loja-nome" placeholder="Nome da loja" style="flex:2;min-width:160px;border:1.5px solid #d4e8d4;border-radius:8px;padding:8px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:600;outline:none">
+              <input id="nova-loja-regional" placeholder="Regional (ex: SP Interior)" style="flex:2;min-width:160px;border:1.5px solid #d4e8d4;border-radius:8px;padding:8px 12px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:600;outline:none">
+              <button onclick="adicionarLoja()" style="background:#3a9e3a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap">+ Adicionar</button>
+            </div>
+          </div>
+
+          <!-- Lista de lojas -->
+          <div style="font-size:11px;font-weight:800;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+            Lojas cadastradas (<span id="total-lojas-count">0</span>)
+          </div>
+          <div id="lista-lojas-config" style="max-height:400px;overflow-y:auto;border:1px solid #d4e8d4;border-radius:10px"></div>
+
+          <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end">
+            <button onclick="fecharConfig()" style="background:#fff;border:1.5px solid #d4e8d4;border-radius:8px;padding:10px 20px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;color:#333">Fechar</button>
+            <button onclick="salvarLojas()" style="background:#3a9e3a;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer">💾 Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>
+
+<script>
+// ── CONFIGURAÇÃO ──
+const SENHA = 'cabana2025'; // Troque para a senha que quiser
+// ── LOJAS COM REGIONAIS ──
+const LOJAS_DEFAULT = [
+  {nome:'Aeroporto T2',regional:'SP Capital'},
+  {nome:'Aeroporto T3',regional:'SP Capital'},
+  {nome:'Alphaville',regional:'SP Interior'},
+  {nome:'Barra-Shopping',regional:'Rio de Janeiro'},
+  {nome:'Braz Leme',regional:'SP Capital'},
+  {nome:'Campinas-Iguatemi',regional:'SP Interior'},
+  {nome:'Internacional Gru',regional:'SP Capital'},
+  {nome:'Jundiaí',regional:'SP Interior'},
+  {nome:'Leopoldo',regional:'SP Capital'},
+  {nome:'Moema',regional:'SP Capital'},
+  {nome:'Mogi das Cruzes',regional:'SP Interior'},
+  {nome:'Morumbi',regional:'SP Capital'},
+  {nome:'Morumbi Town',regional:'SP Capital'},
+  {nome:'Niteroi-Plaza Shopping',regional:'Rio de Janeiro'},
+  {nome:'Osasco',regional:'SP Capital'},
+  {nome:'Oscar Freire',regional:'SP Capital'},
+  {nome:'Pinheiros',regional:'SP Capital'},
+  {nome:'Ribeirão-Preto',regional:'SP Interior'},
+  {nome:'Santo Andre',regional:'SP Capital'},
+  {nome:'Santos',regional:'SP Interior'},
+  {nome:'São Caetano - PS',regional:'SP Capital'},
+  {nome:'São José dos Campos',regional:'SP Interior'},
+  {nome:'Shopping-Eldorado',regional:'SP Capital'},
+  {nome:'Shopping-Mooca',regional:'SP Capital'},
+  {nome:'Shopping Patio Paulista',regional:'SP Capital'},
+  {nome:'Tatuapé',regional:'SP Capital'},
+  {nome:'Top Center',regional:'SP Capital'},
+  {nome:'Villa-Lobos',regional:'SP Capital'},
+];
+
+// Carregar lojas do localStorage ou usar default
+let LOJAS_CONFIG = JSON.parse(localStorage.getItem('cabana_lojas') || 'null') || LOJAS_DEFAULT;
+let regionalAtual = '';
+
+function getLojasAtivas(){
+  if(!regionalAtual) return LOJAS_CONFIG.map(l=>l.nome);
+  return LOJAS_CONFIG.filter(l=>l.regional===regionalAtual).map(l=>l.nome);
+}
+
+let SUPA_URL = localStorage.getItem('supa_url') || 'https://vjqhxnfpjjikakjkabrc.supabase.co';
+let SUPA_KEY = localStorage.getItem('supa_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcWh4bmZwamppa2FramthYnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NjEyNjIsImV4cCI6MjA4OTQzNzI2Mn0.srLVF_Ce2v6D3NeEccr3ZtutN7rtOj1V1shQHVDPSnI';
+let filtroAtual = 'hoje';
+
+// ── LOGIN ──
+function fazerLogin(){
+  const val = document.getElementById('senha-input').value;
+  if(val === SENHA){
+    localStorage.setItem('cabana_auth', 'ok');
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    iniciarDashboard();
+  } else {
+    document.getElementById('login-err').style.display='block';
+  }
+}
+
+function logout(){
+  localStorage.removeItem('cabana_auth');
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('senha-input').value='';
+}
+
+// ── GESTÃO DE LOJAS E REGIONAIS ──
+
+function setRegional(val){
+  regionalAtual = val;
+  carregarTudo();
+}
+
+function popularFiltroRegional(){
+  const sel = document.getElementById('filtro-regional');
+  if(!sel) return;
+  const regionais = [...new Set(LOJAS_CONFIG.map(l=>l.regional||'').filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todas</option>';
+  regionais.forEach(r=>{
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    if(r===regionalAtual) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function abrirConfig(){
+  renderListaLojas();
+  document.getElementById('modal-lojas').style.display='block';
+}
+
+function fecharConfig(){
+  document.getElementById('modal-lojas').style.display='none';
+}
+
+function renderListaLojas(){
+  const lista = document.getElementById('lista-lojas-config');
+  const count = document.getElementById('total-lojas-count');
+  if(!lista) return;
+  count.textContent = LOJAS_CONFIG.length;
+  
+  // Agrupar por regional para exibição
+  const regionais = [...new Set(LOJAS_CONFIG.map(l=>l.regional||'Sem Regional'))].sort();
+  
+  let html = '';
+  LOJAS_CONFIG.forEach((loja, idx) => {
+    const bgAlt = idx % 2 === 0 ? '#fff' : '#f8faf8';
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;padding:8px 12px;background:${bgAlt};border-bottom:1px solid #e8f5e8">
+      <input value="${loja.nome}" onchange="LOJAS_CONFIG[${idx}].nome=this.value" 
+        style="border:1px solid #d4e8d4;border-radius:6px;padding:5px 8px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:600;outline:none;background:#fff">
+      <input value="${loja.regional||''}" placeholder="Regional..." onchange="LOJAS_CONFIG[${idx}].regional=this.value"
+        style="border:1px solid #d4e8d4;border-radius:6px;padding:5px 8px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:600;outline:none;background:#fff">
+      <button onclick="removerLoja(${idx})" title="Remover"
+        style="background:#fee2e2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:14px;font-weight:800">✕</button>
+    </div>`;
+  });
+  
+  if(!html) html = '<div style="padding:20px;text-align:center;color:#999;font-style:italic">Nenhuma loja cadastrada</div>';
+  lista.innerHTML = html;
+}
+
+function adicionarLoja(){
+  const nome = document.getElementById('nova-loja-nome').value.trim();
+  const regional = document.getElementById('nova-loja-regional').value.trim();
+  if(!nome){ alert('Digite o nome da loja'); return; }
+  if(LOJAS_CONFIG.find(l=>l.nome.toLowerCase()===nome.toLowerCase())){
+    alert('Loja já cadastrada'); return;
+  }
+  LOJAS_CONFIG.push({nome, regional});
+  document.getElementById('nova-loja-nome').value='';
+  document.getElementById('nova-loja-regional').value='';
+  renderListaLojas();
+}
+
+function removerLoja(idx){
+  const loja = LOJAS_CONFIG[idx];
+  if(!confirm(`Remover "${loja.nome}"?`)) return;
+  LOJAS_CONFIG.splice(idx, 1);
+  renderListaLojas();
+}
+
+function salvarLojas(){
+  localStorage.setItem('cabana_lojas', JSON.stringify(LOJAS_CONFIG));
+  popularFiltroRegional();
+  fecharConfig();
+  carregarTudo();
+  // Feedback
+  const btn = event.target;
+  btn.textContent = '✓ Salvo!';
+  setTimeout(()=>{ btn.textContent = '💾 Salvar'; }, 1500);
+}
+
+// Inicializar filtro regional ao carregar
+
+// Auto-login verificado após todas as funções carregarem
+
+// ── CONFIG ──
+function salvarConfig(){
+  SUPA_URL = document.getElementById('cfg-url').value.trim();
+  SUPA_KEY = document.getElementById('cfg-key').value.trim();
+  if(!SUPA_URL || !SUPA_KEY){
+    document.getElementById('cfg-status').textContent='Preencha os dois campos.';
+    document.getElementById('cfg-status').className='config-status err';
+    return;
+  }
+  localStorage.setItem('supa_url', SUPA_URL);
+  localStorage.setItem('supa_key', SUPA_KEY);
+  document.getElementById('cfg-status').textContent='✓ Configuração salva! Carregando dados...';
+  document.getElementById('cfg-status').className='config-status ok';
+  setTimeout(()=>{ document.getElementById('config-box').style.display='none'; }, 1500);
+  carregarTudo();
+}
+
+// ── INICIALIZAR ──
+function iniciarDashboard(){
+  popularFiltroRegional();
+  // Data no header
+  const now = new Date();
+  document.getElementById('hdr-date').textContent =
+    now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'}).replace(/^\w/,c=>c.toUpperCase());
+
+  // Pre-fill config if saved
+  if(SUPA_URL) document.getElementById('cfg-url').value = SUPA_URL;
+  if(SUPA_KEY) document.getElementById('cfg-key').value = SUPA_KEY;
+  if(SUPA_URL && SUPA_KEY){
+    document.getElementById('config-box').style.display='none';
+    carregarTudo();
+  }
+}
+
+// ── FILTRO ──
+function setFiltro(f, btn){
+  filtroAtual = f;
+  document.querySelectorAll('.filtro-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  carregarTudo();
+}
+
+function getFiltroDate(){
+  const now = new Date();
+  if(filtroAtual==='hoje'){
+    const d = now.toISOString().split('T')[0];
+    return `&data_hora=gte.${d}T00:00:00`;
+  }
+  if(filtroAtual==='semana'){
+    const d = new Date(now - 7*24*60*60*1000).toISOString();
+    return `&data_hora=gte.${d}`;
+  }
+  if(filtroAtual==='mes'){
+    const d = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    return `&data_hora=gte.${d}`;
+  }
+  return '';
+}
+
+// ── FETCH SUPABASE ──
+async function fetchSupa(path){
+  if(!SUPA_URL||!SUPA_KEY) return [];
+  try{
+    const r = await fetch(`${SUPA_URL}/rest/v1/${path}`, {
+      headers:{'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`}
+    });
+    return await r.json();
+  }catch(e){ return []; }
+}
+
+// ── CARREGAR TUDO ──
+async function carregarTudo(){
+  const filtro = getFiltroDate();
+  const todosOsDados = await fetchSupa(`registros?order=data_hora.desc&limit=500${filtro}`);
+  const todosHoje = filtroAtual==='hoje' ? todosOsDados : await fetchSupa(`registros?order=data_hora.desc&limit=500&data_hora=gte.${new Date().toISOString().split('T')[0]}T00:00:00`);
+  const todosSemana = await fetchSupa(`registros?order=data_hora.desc&limit=1000&data_hora=gte.${new Date(Date.now()-7*24*60*60*1000).toISOString()}`);
+
+  // Filtrar por regional se selecionada
+  const lojasAtivas = getLojasAtivas();
+  const filtrarRegional = d => !regionalAtual || lojasAtivas.includes(d.loja);
+
+  const dados     = todosOsDados.filter(filtrarRegional);
+  const dadosHoje = todosHoje.filter(filtrarRegional);
+  const dadosSemana = todosSemana.filter(filtrarRegional);
+
+  renderKPIs(dados, dadosHoje, dadosSemana);
+  renderAlertaInativas(dadosHoje);
+  renderTabela(dados);
+  renderResumo(dados);
+  renderRanking(dados);
+  renderTurno(dados);
+}
+
+// ── KPIs ──
+function renderKPIs(dados, hoje, semana){
+  document.getElementById('kpi-hoje').textContent = hoje.length;
+  document.getElementById('kpi-semana').textContent = semana.length;
+
+  const lojasHoje = new Set(hoje.map(d=>d.loja)).size;
+  document.getElementById('kpi-lojas-ativas').textContent = lojasHoje;
+  document.getElementById('kpi-lojas-sub').textContent = `de ${getLojasAtivas().length} lojas${regionalAtual?' ('+regionalAtual+')':''}`;
+
+  if(dados.length>0){
+    const media = Math.round(dados.reduce((s,d)=>s+d.total_pessoas,0)/dados.length);
+    document.getElementById('kpi-media').textContent = media;
+  }
+}
+
+// ── ALERTA INATIVAS ──
+function renderAlertaInativas(hoje){
+  const lojasUsaram = new Set(hoje.map(d=>d.loja));
+  const inativas = getLojasAtivas().filter(l=>!lojasUsaram.has(l));
+  const box = document.getElementById('alert-inativas');
+  const list = document.getElementById('alert-lojas-list');
+  if(inativas.length===0){ box.style.display='none'; return; }
+  box.style.display='block';
+  list.innerHTML = inativas.map(l=>`<div class="alert-loja">${l}</div>`).join('');
+}
+
+// ── TABELA ──
+function renderTabela(dados){
+  document.getElementById('total-registros').textContent = `${dados.length} registros`;
+  const tb = document.getElementById('tabela-body');
+  if(!dados.length){ tb.innerHTML='<tr><td colspan="6" class="empty"><div class="empty-icon">📭</div><div>Nenhum registro encontrado</div></td></tr>'; return; }
+  tb.innerHTML = dados.slice(0,100).map(d=>{
+    const dt = new Date(d.data_hora);
+    const dtStr = dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    const turnoClass = {ALMOÇO:'almoco',JANTAR:'jantar',MADRUGADA:'madrugada'}[d.turno]||'almoco';
+    return `<tr>
+      <td style="font-size:11px;color:#666">${dtStr}</td>
+      <td style="font-weight:700">${d.loja}</td>
+      <td><span class="badge-turno badge-${turnoClass}">${d.turno}</span></td>
+      <td><span class="num-pill">${d.pessoas_salao}</span></td>
+      <td><span class="num-pill">${d.pessoas_cozinha}</span></td>
+      <td style="font-weight:800">${d.total_pessoas}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── RESUMO POR LOJA ──
+function renderResumo(dados){
+  const tb = document.getElementById('resumo-body');
+  if(!dados.length){ tb.innerHTML='<tr><td colspan="5" class="empty"><div class="empty-icon">📭</div><div>Sem dados</div></td></tr>'; return; }
+
+  const por_loja = {};
+  dados.forEach(d=>{
+    if(!por_loja[d.loja]) por_loja[d.loja]={count:0,salao:0,cozinha:0,ultima:d.data_hora};
+    por_loja[d.loja].count++;
+    por_loja[d.loja].salao+=d.pessoas_salao;
+    por_loja[d.loja].cozinha+=d.pessoas_cozinha;
+    if(d.data_hora > por_loja[d.loja].ultima) por_loja[d.loja].ultima=d.data_hora;
+  });
+
+  const sorted = Object.entries(por_loja).sort((a,b)=>b[1].count-a[1].count);
+  tb.innerHTML = sorted.map(([loja,v])=>{
+    const ultima = new Date(v.ultima).toLocaleDateString('pt-BR')+' '+new Date(v.ultima).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `<tr>
+      <td style="font-weight:700">${loja}</td>
+      <td><span class="num-pill">${v.count}</span></td>
+      <td>${Math.round(v.salao/v.count)}</td>
+      <td>${Math.round(v.cozinha/v.count)}</td>
+      <td style="font-size:11px;color:#888">${ultima}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── RANKING ──
+function renderRanking(dados){
+  const el = document.getElementById('ranking-list');
+  if(!dados.length){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div>Sem dados</div></div>'; return; }
+
+  const cnt = {};
+  dados.forEach(d=>{ cnt[d.loja]=(cnt[d.loja]||0)+1; });
+  const sorted = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max = sorted[0]?.[1]||1;
+
+  el.innerHTML = sorted.map(([loja,n],i)=>`
+    <div class="ranking-item">
+      <div class="rank-pos">${i+1}</div>
+      <div class="rank-name">${loja}</div>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(n/max*100)}%"></div></div>
+      <div class="rank-count">${n}x</div>
+    </div>`).join('');
+}
+
+// ── POR TURNO ──
+function renderTurno(dados){
+  const el = document.getElementById('turno-list');
+  if(!dados.length){ el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div>Sem dados</div></div>'; return; }
+
+  const turnos = {ALMOÇO:0, JANTAR:0, MADRUGADA:0};
+  dados.forEach(d=>{ if(turnos[d.turno]!==undefined) turnos[d.turno]++; });
+  const total = dados.length||1;
+
+  el.innerHTML = Object.entries(turnos).map(([t,n])=>{
+    const cls = {ALMOÇO:'almoco',JANTAR:'jantar',MADRUGADA:'madrugada'}[t];
+    const pct = Math.round(n/total*100);
+    return `<div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span class="badge-turno badge-${cls}">${t}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--muted)">${n} (${pct}%)</span>
+      </div>
+      <div style="height:8px;background:#e8f5e8;border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px;transition:width .6s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Auto-refresh a cada 2 minutos
+setInterval(()=>{ if(SUPA_URL&&SUPA_KEY) carregarTudo(); }, 120000);
+
+// Auto-login se já autenticado
+if(localStorage.getItem('cabana_auth') === 'ok'){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  iniciarDashboard();
+}
+</script>
+</body>
+</html>
