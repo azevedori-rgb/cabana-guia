@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cabana Burger — Geografia das Lojas</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',system-ui,sans-serif;background:#f7f8fa;color:#1a1d21;overflow:hidden;font-size:13px}
+.shell{display:flex;flex-direction:column;height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#fff;border-bottom:1px solid #e2e5e9;box-shadow:0 1px 3px rgba(0,0,0,.05);flex-shrink:0;z-index:100;position:sticky;top:0}
+.logo{display:flex;align-items:center;gap:14px}
+.logo img{height:32px}
+.logo-divider{width:1px;height:24px;background:#e2e5e9}
+.logo-title{font-size:13px;font-weight:500;color:#5a6068}
+.topbar-center{display:flex;gap:4px;background:#f7f8fa;border-radius:999px;padding:3px}
+.tab-btn{font-family:inherit;font-size:11px;font-weight:600;padding:6px 14px;border-radius:999px;border:1.5px solid transparent;background:transparent;color:#5a6068;cursor:pointer;transition:all .15s}
+.tab-btn.active{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.tab-btn:hover:not(.active){color:#0f6e4e;background:#e8f7f1}
+.kpi-strip{display:flex;gap:28px}
+.kpi{text-align:center;position:relative}
+.kpi+.kpi::before{content:'';position:absolute;left:-14px;top:4px;bottom:4px;width:1px;background:#e2e5e9}
+.kpi-val{font-size:22px;font-weight:700;color:#0f6e4e}
+.kpi-label{font-size:10px;color:#8b929a;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-top:1px}
+.main-content{flex:1;overflow:hidden;position:relative}
+.map-view{display:grid;grid-template-columns:360px 1fr;height:100%;position:absolute;inset:0;transition:opacity .2s}
+.map-view.hidden{opacity:0;pointer-events:none}
+.sidebar{background:#fff;border-right:1px solid #e2e5e9;display:flex;flex-direction:column;overflow:hidden}
+.sidebar-head{padding:16px 20px 14px;border-bottom:1px solid #e2e5e9}
+.sidebar-head h2{font-size:11px;font-weight:600;color:#8b929a;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.filters{display:flex;gap:5px;flex-wrap:wrap}
+.fbtn{font-family:inherit;font-size:11px;padding:6px 14px;border-radius:999px;border:1.5px solid #e2e5e9;background:#fff;color:#5a6068;cursor:pointer;transition:all .15s;font-weight:500}
+.fbtn:hover{background:#e8f7f1;color:#0f6e4e;border-color:#1D9E75}
+.fbtn.active{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.search-box{margin-top:12px;position:relative}
+.search-box input{width:100%;padding:8px 12px 8px 34px;border-radius:6px;border:1px solid #e2e5e9;background:#f7f8fa;color:#1a1d21;font-family:inherit;font-size:13px;outline:none;transition:all .15s}
+.search-box input::placeholder{color:#8b929a}
+.search-box input:focus{border-color:#1D9E75;background:#fff;box-shadow:0 0 0 2px rgba(29,158,117,.1)}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;opacity:.35}
+.store-list{flex:1;overflow-y:auto;padding:8px 12px}
+.store-list::-webkit-scrollbar{width:5px}
+.store-list::-webkit-scrollbar-thumb{background:#e2e5e9;border-radius:4px}
+.store-card{padding:12px 14px;border-radius:10px;cursor:pointer;transition:all .15s;margin-bottom:4px;border:1px solid transparent}
+.store-card:hover{background:#e8f7f1}
+.store-card.selected{background:#e8f7f1;border-color:#1D9E75}
+.sc-top{display:flex;align-items:center;justify-content:space-between}
+.sc-name{font-size:13px;font-weight:600;color:#1a1d21}
+.sc-abbr{font-size:10px;font-weight:700;color:#0f6e4e;background:#e8f7f1;padding:3px 10px;border-radius:999px;letter-spacing:.5px}
+.sc-addr{font-size:11px;color:#8b929a;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-badges{display:flex;gap:5px;margin-top:7px}
+.sc-badge{font-size:10px;padding:3px 10px;border-radius:999px;font-weight:600}
+.b-propria{background:#e8f7f1;color:#0f6e4e}
+.b-franquia{background:rgba(230,126,34,.12);color:#e67e22}
+.b-shopping{background:rgba(52,152,219,.1);color:#3498db}
+.b-rua{background:#f7f8fa;color:#5a6068;border:1px solid #e2e5e9}
+.b-dk{background:rgba(155,89,182,.1);color:#8e44ad}
+.b-aeroporto{background:rgba(220,53,69,.1);color:#dc3545}
+.sc-stats{display:flex;gap:16px;margin-top:7px;font-size:11px;color:#8b929a}
+.sc-stats span strong{color:#5a6068;font-weight:600}
+#map{width:100%;height:100%}
+.leaflet-control-zoom a{background:#fff !important;color:#5a6068 !important;border-color:#e2e5e9 !important;font-weight:700}
+.leaflet-control-zoom a:hover{background:#e8f7f1 !important;color:#0f6e4e !important}
+.leaflet-popup-content-wrapper{background:#fff !important;color:#1a1d21 !important;border-radius:10px !important;box-shadow:0 1px 3px rgba(0,0,0,.05) !important;border:1px solid #e2e5e9 !important}
+.leaflet-popup-tip{background:#fff !important}
+.leaflet-popup-content{margin:14px 18px !important;font-family:'DM Sans',system-ui,sans-serif !important;font-size:13px;line-height:1.6}
+.leaflet-popup-close-button{color:#8b929a !important;font-size:18px !important;top:6px !important;right:10px !important}
+.leaflet-popup-close-button:hover{color:#1a1d21 !important}
+.pop-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #e2e5e9}
+.pop-icon{width:36px;height:36px;border-radius:10px;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#fff;flex-shrink:0}
+.pop-name{font-weight:700;font-size:15px;color:#0f6e4e}
+.pop-addr{font-size:11px;color:#8b929a;margin-top:1px}
+.pop-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px}
+.pop-item{display:flex;flex-direction:column}
+.pop-label{font-size:10px;color:#8b929a;text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+.pop-val{font-size:13px;font-weight:600;color:#1a1d21}
+.legend{position:absolute;bottom:24px;left:16px;z-index:1000;background:rgba(255,255,255,.97);border:1px solid #e2e5e9;border-radius:10px;padding:14px 18px;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.legend-title{font-weight:600;color:#8b929a;text-transform:uppercase;letter-spacing:.5px;font-size:10px;margin-bottom:8px}
+.legend-item{display:flex;align-items:center;gap:8px;margin-bottom:5px;color:#5a6068}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.count-bar{padding:10px 20px;font-size:12px;color:#8b929a;border-top:1px solid #e2e5e9;background:#f7f8fa}
+.count-bar strong{color:#0f6e4e}
+.table-view{position:absolute;inset:0;background:#f7f8fa;display:flex;flex-direction:column;transition:opacity .2s;overflow:hidden}
+.table-view.hidden{opacity:0;pointer-events:none}
+.table-toolbar{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:#fff;border-bottom:1px solid #e2e5e9;flex-shrink:0}
+.table-toolbar-left{display:flex;align-items:center;gap:14px}
+.table-toolbar h3{font-size:11px;font-weight:600;color:#8b929a;text-transform:uppercase;letter-spacing:.5px}
+.table-search{padding:4px 8px;border-radius:6px;border:1px solid #e2e5e9;background:#f7f8fa;font-family:inherit;font-size:13px;color:#1a1d21;outline:none;width:220px}
+.table-search:focus{border-color:#1D9E75;background:#fff;box-shadow:0 0 0 2px rgba(29,158,117,.1)}
+.tt-actions{display:flex;gap:8px}
+.tt-btn{font-family:inherit;font-size:11px;font-weight:600;padding:8px 24px;border-radius:10px;border:1px solid #e2e5e9;background:#fff;color:#5a6068;cursor:pointer;transition:all .15s}
+.tt-btn:hover{background:#e8f7f1;border-color:#1D9E75;color:#0f6e4e}
+.tt-btn.primary{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.tt-btn.primary:hover{background:#0f6e4e}
+.table-wrap{flex:1;overflow:auto;padding:0}
+.table-wrap::-webkit-scrollbar{width:6px;height:6px}
+.table-wrap::-webkit-scrollbar-thumb{background:#e2e5e9;border-radius:4px}
+table.data-table{border-collapse:collapse;width:max-content;min-width:100%;font-size:11px}
+table.data-table thead{position:sticky;top:0;z-index:5}
+table.data-table th{background:#f5f7f9;color:#5a6068;font-weight:600;padding:8px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid #e2e5e9;font-size:10px;letter-spacing:.4px;text-transform:uppercase}
+table.data-table td{padding:6px 12px;border-top:1px solid #e2e5e9;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+table.data-table tr:nth-child(even) td{background:#fafbfc}
+table.data-table tr:hover td{background:#e8f7f1}
+table.data-table td[contenteditable]:focus{outline:2px solid #1D9E75;outline-offset:-2px;background:#fff !important;border-radius:2px}
+table.data-table td select{font-family:inherit;font-size:11px;border:none;background:transparent;outline:none;width:100%;color:inherit;padding:0;cursor:pointer}
+table.data-table td select:focus{outline:2px solid #1D9E75;border-radius:2px}
+.table-footer{padding:10px 20px;font-size:12px;color:#8b929a;border-top:1px solid #e2e5e9;background:#fff;flex-shrink:0;display:flex;justify-content:space-between;align-items:center}
+.table-footer strong{color:#0f6e4e}
+.toast{position:fixed;top:20px;right:20px;background:#1D9E75;color:#fff;padding:12px 24px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,.08);z-index:9999;opacity:0;transform:translateY(-10px);transition:all .3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{background:#dc3545}
+.sync-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}
+.sync-ok{background:#1D9E75}
+.sync-loading{background:#e67e22;animation:pulse .8s infinite}
+.sync-err{background:#dc3545}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media(max-width:900px){
+  .map-view{grid-template-columns:1fr}
+  .sidebar{max-height:45vh;border-right:none;border-bottom:1px solid #e2e5e9}
+  .kpi-strip{gap:14px}.kpi-val{font-size:17px}
+  .topbar{padding:10px 16px;flex-wrap:wrap;gap:8px}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">
+      <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAHKAcoDASIAAhEBAxEB/8QAHQABAAEEAwEAAAAAAAAAAAAAAAECBwgJAwUGBP/EAFAQAAEDAwIEAwMHBwcKBAcAAAEAAgMEBREGIQcSMUEIUWETIpEUMnGBobHBFRcYVpLR4RY3QlJTcnMJIzM1VWKCk7KzJCdl8TRDRGN1g/D/xAAbAQEAAgMBAQAAAAAAAAAAAAAAAQYDBAUCB//EAC8RAQABBAICAQMDAwMFAAAAAAABAgMEEQUhBjESEyJBMkJRI1JhFBWBJDM0cZH/2gAMAwEAAhEDEQA/AMy0REBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREAp2Q9FHbdBOUVKqKAidlSTnoUFWVGQg9VS5wByTsomYhEq8pndfHU3Clpml00rWtHUk9F0tVrjTNOSyW6QtcOxKxzftx7qhhryLVH6qoelypyvDVXE3S8QJFxidjsCusn4vadYTyuD/oeFgnkMeP3Q1p5TFj98LmZCZVqxxksOcexdjz9p/BfTBxd05IRzv9n9LwvMcjj/AN0I/wB1xf74XKyPJM5XhqfidpaQgG4Rsz5ldjS680xUEBl1hJ9CstOZYq9VQy0chjV+q4epJwoyF8NHdKGsaHU87HjHZfY1zDuFnprpq9S2Ka6au6Z2qBBymQo+vZBt0XrbIqygVJPZASmpNKkyoym30IhKIOiIkREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQCoUnoqCQDjOPpTQnop7ZVBJGw+PZdRf9Q2yzQPfWVkMRa3PK5wBK8XK6aI3VLHdu026d1T07guAG6627Xmgt0TpKidjGtG+XfgrHa142SSvkprFDKxzDgvcNj9CtRer7dLvVGprKp7nu6gOOFwMvn7Vv7aO5VjO8ntWY1b7lf7U3Gmy0JdFb3tnlBxg5wrd33jJf69rooIxTgnZzNiPtVsXbnJ3PmUVeyebyLn6Z0qmV5DlX5+2rTurhqXUla8umvVbyn+h7Q4+C6id8lQ7NQ9zz3JOVRk+aZXLqyLlyd11OPdyr9yfvq2o9lEerAqgyIDAbhSixTVLBNU/wAoDQBjGypcxh6tyq8IoiqUfKf5UeziI2jGfoXJETEcxOMZ82nChF7iqfbJTcqj07Wj1FqCkaG0t3rIwOgbIQF7GwcXdRWmMNeTWdiZSSfvVusnCYJ7rZs8jkWp+2puWeUy7E/bXpkPprjhbahrY7uGU8rugaDj8Vc6yajtl2p2zU1RG5rhsOYZWFJG+fgvttl1r7fVNmpaiRrmkYHMcbLt4vkNyJ1X2sOH5XeomIuxuGb7XtduN1yAArHHRXGqso5GU19hlmDiAJIxkN9T0V8dO6kt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EBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERATsioO5x9qCvOy4KmspaZvNPURRAdS5wCs94gOOll4c0TqKnmbNd3g+zaMODD6hYQcQuMmvuINeWT19Q3nOI46UlhI8sNQbH6zX2laSUxzXaHmG2zgV2Vr1HZLm0GjuMEme3OAVq3o9GcS69ntY7VqCRmMhxbKcr5y/iBpCrZWVIvdAY3be2dI1pP17FBtla5rm8zSCPMFAQVg/wABPFPdKe5Q2XWcsclG7DIpeUAt88u/es0rRcaK72+G40FRHPTzMDo3MdkEHpug+9ERAzuvluNwo7fTuqKydkMbRklxwvpO/RYb+PfiJJE6l0raK2SGZj8VXs38rsYJxsduyDL213KiudP7ehqGTR5xzNOV9gOVhT4DeJcrbhPom41T5TUZnjfM8uIDdsAn6eizUz08uyCpFA6kKnuQMgoEsscUZkleGNHUk4AXW/yismS03KmBBwRzroOM8j4uG90kY97XCMnmYSCNitXNxu18kvdTDDdLi57qh7WtFQ/JJccbZQbZRqOxk4F0pv21MWobLI/kZcqYu8ucLVszS3FNzA9ts1NgjY4m3XFPp7ifSRmeag1NExvV59qAPrQbXYaiCYf5qaOQf7rgVyg5WsrhZx41voS5RRTVstRSNcBNHP77sA77nO/VbCOFutbfrvSlJfKAgCaJr3Nzu0kdCg9aiIgLhqqiGlp31E7wyKMZc49AFyEe8Oqx38bXEY6V0KbFRz8tRdQYHezdhzBjOcjcdEF+rRebbdmPdQVcc4YcO5T0X3ggrXj4M+I9wsPEZlnuVxkfb60FzvayF2HjAAGTtnK2FxvY9jZWnIeAW+oO6DkB3KZ2TtuqDzHoRjugkuaG8xIA818lFdLfWyvipauKWRhIc1rtxhcd/A/I1S33gCw7tJB+xa4dLcVb7w54zXetgrqiel/KMzJI5pC9oaXkHYk42KDZcHAjKkHK8xw41ladb6dhu9qmY9sjQXNDslpPmvTdignK66rvdppJzDUV8EcgOC1zsEL7mYHujP1rWl4r7hdaTjhf44bpWsjFW/lY2ocA3Dj0AOyDZTSVVPVxe1ppmyszjmacrnVjvBjLUzcIWOqKmWok9ufekeXH5o2y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REBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREBERAREQEREH//Z" alt="Cabana Burger">
+      <div class="logo-divider"></div>
+      <div class="logo-title">Geografia das Lojas</div>
+    </div>
+    <div class="topbar-center">
+      <button class="tab-btn active" onclick="switchTab('map')">Mapa</button>
+      <button class="tab-btn" onclick="switchTab('table')">Cadastro</button>
+    </div>
+    <div class="kpi-strip">
+      <div class="kpi"><div class="kpi-val" id="k-total">—</div><div class="kpi-label">Unidades</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-own">—</div><div class="kpi-label">Próprias</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-fran">—</div><div class="kpi-label">Franquias</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-states">—</div><div class="kpi-label">Estados</div></div>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="map-view" id="mapView">
+      <div class="sidebar">
+        <div class="sidebar-head">
+          <h2><span id="syncStatus"><span class="sync-dot sync-loading"></span></span> Unidades do Grupo</h2>
+          <div class="filters" id="filters"></div>
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="10.5" cy="10.5" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
+            <input type="text" id="search" placeholder="Buscar por nome, bairro ou cidade...">
+          </div>
+        </div>
+        <div class="store-list" id="store-list"></div>
+        <div class="count-bar" id="count-bar"></div>
+      </div>
+      <div style="position:relative">
+        <div id="map"></div>
+        <div id="mapCounter" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(255,255,255,.97);border:1px solid #e2e5e9;border-radius:10px;padding:8px 20px;font-size:13px;font-weight:600;color:#0f6e4e;box-shadow:0 1px 3px rgba(0,0,0,.05);display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="mapCounterText">28 lojas visíveis</span>
+        </div>
+        <div id="overlapPanel" style="display:none;position:absolute;top:14px;right:60px;z-index:1000;background:rgba(255,255,255,.97);border:1px solid #e2e5e9;border-radius:10px;padding:14px 16px;font-size:11px;color:#5a6068;box-shadow:0 1px 3px rgba(0,0,0,.05);width:280px;max-height:calc(100% - 60px);overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:700;font-size:12px;color:#0f6e4e">Análise de sobreposição</span>
+            <button onclick="closeOverlapPanel()" style="font-family:inherit;font-size:16px;background:none;border:none;color:#8b929a;cursor:pointer;padding:0 2px;line-height:1">&times;</button>
+          </div>
+          <div id="overlapContent"></div>
+        </div>
+        <div class="legend">
+          <div class="legend-title">Regionais</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>SP Oeste</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div>SP Leste/Norte</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div>SP Sul</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>RJ</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>Franquia</div>
+          <div style="border-top:1px solid #e2e5e9;margin:8px 0"></div>
+          <div class="legend-title">Status</div>
+          <div class="legend-item"><svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#5a6068"/></svg>Ativa</div>
+          <div class="legend-item"><svg width="14" height="14"><polygon points="7,1 13,13 1,13" fill="#5a6068" opacity=".6"/></svg>Inativa</div>
+          <div class="legend-item"><svg width="14" height="14"><rect x="1" y="1" width="12" height="12" rx="2" fill="#5a6068" opacity=".75" stroke="#fff" stroke-width="1" stroke-dasharray="2,1"/></svg>Em obras</div>
+          <div class="legend-item"><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="none" stroke="#5a6068" stroke-width="1.5" stroke-dasharray="2,1.5"/></svg>Planejada</div>
+          <div style="border-top:1px solid #e2e5e9;margin:8px 0"></div>
+          <div class="legend-title">Concorrência</div>
+          <button id="btnBullguer" onclick="toggleBullguer()" style="font-family:inherit;font-size:11px;font-weight:600;padding:6px 14px;border-radius:999px;border:1.5px solid #e2e5e9;background:#fff;color:#5a6068;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s;width:100%"><span style="width:10px;height:10px;border-radius:3px;background:#222;border:1.5px solid #d4a017;flex-shrink:0"></span>Bullguer</button>
+          <div style="border-top:1px solid #e2e5e9;margin:8px 0"></div>
+          <div class="legend-title">Raio de atuação</div>
+          <div style="display:flex;gap:4px;margin-bottom:0">
+            <button id="btnR3" onclick="toggleRadius(3)" style="font-family:inherit;font-size:11px;font-weight:600;padding:6px 0;border-radius:999px;border:1.5px solid #e2e5e9;background:#fff;color:#5a6068;cursor:pointer;flex:1;transition:all .15s">3 km</button>
+            <button id="btnR5" onclick="toggleRadius(5)" style="font-family:inherit;font-size:11px;font-weight:600;padding:6px 0;border-radius:999px;border:1.5px solid #e2e5e9;background:#fff;color:#5a6068;cursor:pointer;flex:1;transition:all .15s">5 km</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="table-view hidden" id="tableView">
+      <div class="table-toolbar">
+        <div class="table-toolbar-left">
+          <h3>Cadastro de Unidades</h3>
+          <input type="text" class="table-search" id="tableSearch" placeholder="Filtrar lojas...">
+        </div>
+        <div class="tt-actions">
+          <button class="tt-btn" onclick="addRow()">+ Nova Loja</button>
+          <button class="tt-btn" onclick="exportCSV()">Exportar CSV</button>
+          <button class="tt-btn primary" onclick="saveAll()">Salvar Alterações</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="tableWrap"></div>
+      <div class="table-footer" id="tableFooter"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+var SB_URL='https://vjqhxnfpjjikakjkabrc.supabase.co';
+var SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcWh4bmZwamppa2FramthYnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NjEyNjIsImV4cCI6MjA4OTQzNzI2Mn0.srLVF_Ce2v6D3NeEccr3ZtutN7rtOj1V1shQHVDPSnI';
+var HDR={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
+
+var stores=[];
+var colors={Franquia:'#e67e22','RJ':'#9b59b6','SP Leste/Norte':'#2563eb','SP Oeste':'#1D9E75','SP Sul':'#e74c3c'};
+var map,markers=[];
+var cols=["status","cluster","cod","name","abbr","cnpj","owner","regional","reg_name","state","city","city_type","bairro","address","cep","tipo","lat","lng","m2","mesas","assentos","cozinhas","exp_dlv","turnos","obs"];
+var colNames=["Status","Cluster","Cód","Nome","Sigla","CNPJ","Modelo","Regional","Resp.","UF","Cidade","Tipo Cidade","Bairro","Endereço","CEP","Tipo Loja","Lat","Lng","m²","Mesas","Assentos","Coz","Expedição","Turnos","Obs"];
+var dropdowns={status:["Ativa","Inativa","Em obras","Planejada"],cluster:["","A1","A2","A3","B1","B2","B3","C1","C2","C3"],owner:["Própria","Franquia"],regional:["Franquia","RJ","SP Leste/Norte","SP Oeste","SP Sul"],state:["SP","RJ"],city_type:["Capital","Interior","Litoral"],tipo:["Shopping","Rua","DK","Aeroporto"]};
+
+var SEED=[
+  {status:"Ativa",cluster:"",cod:"02",name:"Leopoldo",abbr:"LEO",cnpj:"25.058.899/0002-05",owner:"Própria",regional:"SP Sul",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Itaim Bibi",address:"R Leopoldo Couto de Magalhães Jr, 753",cep:"04542-011",tipo:"Rua",lat:-23.5874,lng:-46.6788,m2:160,mesas:38,assentos:82,cozinhas:1,exp_dlv:"Hibrida",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"03",name:"Casa Branca",abbr:"CAS",cnpj:"25.058.899/0003-96",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Jardim Paulista",address:"Al Casa Branca, 890",cep:"01408-000",tipo:"DK",lat:-23.5595,lng:-46.6685,m2:80,mesas:0,assentos:0,cozinhas:1,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"05",name:"Barra da Tijuca",abbr:"BAR",cnpj:"25.058.899/0005-58",owner:"Própria",regional:"RJ",reg_name:"",state:"RJ",city:"Rio de Janeiro",city_type:"Capital",bairro:"Barra da Tijuca",address:"Av das Américas, 4666",cep:"22640-902",tipo:"Shopping",lat:-22.9994,lng:-43.3650,m2:167,mesas:46,assentos:102,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"06",name:"Morumbi",abbr:"MOR",cnpj:"25.058.899/0006-39",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Jardim das Acacias",address:"Av Roque Petroni Jr, 1089",cep:"04707-900",tipo:"Shopping",lat:-23.6242,lng:-46.6991,m2:172,mesas:24,assentos:84,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"07",name:"Villa Lobos",abbr:"VIL",cnpj:"25.058.899/0007-10",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Pinheiros",address:"Av Dra Ruth Cardoso, 4777",cep:"05477-903",tipo:"Shopping",lat:-23.5508,lng:-46.7207,m2:98,mesas:20,assentos:56,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"08",name:"Oscar Freire",abbr:"OSC",cnpj:"25.058.899/0008-09",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Cerqueira Cesar",address:"R Oscar Freire, 56",cep:"01426-000",tipo:"Rua",lat:-23.5680,lng:-46.6621,m2:240,mesas:39,assentos:84,cozinhas:1,exp_dlv:"Hibrida",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"09",name:"Moema",abbr:"MOE",cnpj:"25.058.899/0009-81",owner:"Própria",regional:"SP Sul",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Moema",address:"R Gaivota, 690",cep:"04522-031",tipo:"Rua",lat:-23.6020,lng:-46.6656,m2:190,mesas:52,assentos:97,cozinhas:2,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"11",name:"Alphaville",abbr:"ALP",cnpj:"25.058.899/0011-04",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"Barueri",city_type:"Capital",bairro:"Alphaville",address:"Av Copacabana, 325",cep:"06472-001",tipo:"Rua",lat:-23.4843,lng:-46.8545,m2:150,mesas:34,assentos:128,cozinhas:1,exp_dlv:"Exclusiva",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"12",name:"Braz Leme",abbr:"BRA",cnpj:"25.058.899/0012-87",owner:"Própria",regional:"SP Leste/Norte",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Santana",address:"Av Braz Leme, 2398",cep:"02022-020",tipo:"Rua",lat:-23.5034,lng:-46.6365,m2:120,mesas:25,assentos:62,cozinhas:1,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"13",name:"Campinas",abbr:"CAM",cnpj:"25.058.899/0013-68",owner:"Própria",regional:"SP Sul",reg_name:"",state:"SP",city:"Campinas",city_type:"Interior",bairro:"Vila Brandina",address:"Av Iguatemi, 777",cep:"13092-902",tipo:"Shopping",lat:-22.8917,lng:-47.0256,m2:180,mesas:23,assentos:104,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"14",name:"Niterói",abbr:"NIT",cnpj:"25.058.899/0014-49",owner:"Própria",regional:"RJ",reg_name:"",state:"RJ",city:"Niterói",city_type:"Capital",bairro:"Centro",address:"R Quinze de Novembro, 08",cep:"24020-125",tipo:"Shopping",lat:-22.8972,lng:-43.1247,m2:94,mesas:38,assentos:82,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"15",name:"Eldorado",abbr:"ELD",cnpj:"25.058.899/0015-20",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Pinheiros",address:"Av Rebouças, 3970",cep:"05402-918",tipo:"Shopping",lat:-23.5729,lng:-46.6954,m2:257,mesas:38,assentos:126,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"17",name:"Santo André",abbr:"SAN",cnpj:"25.058.899/0017-91",owner:"Própria",regional:"SP Leste/Norte",reg_name:"",state:"SP",city:"Santo André",city_type:"Interior",bairro:"Jardim",address:"Av Pe Manuel da Nóbrega, 424",cep:"09080-140",tipo:"Rua",lat:-23.6518,lng:-46.5346,m2:298,mesas:24,assentos:86,cozinhas:1,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"22",name:"Pinheiros",abbr:"PIN",cnpj:"25.058.899/0022-59",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Pinheiros",address:"R dos Pinheiros, 877",cep:"05422-011",tipo:"Rua",lat:-23.5670,lng:-46.6858,m2:302,mesas:34,assentos:84,cozinhas:1,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"24",name:"Ribeirão Preto",abbr:"RIB",cnpj:"25.058.899/0024-10",owner:"Própria",regional:"SP Sul",reg_name:"",state:"SP",city:"Ribeirão Preto",city_type:"Interior",bairro:"Jardim California",address:"Av Cel Fernando F. Leite, 1540",cep:"14026-900",tipo:"Shopping",lat:-21.2110,lng:-47.8159,m2:206,mesas:19,assentos:63,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"26",name:"Guarulhos",abbr:"GUA",cnpj:"25.058.899/0026-82",owner:"Própria",regional:"SP Leste/Norte",reg_name:"",state:"SP",city:"Guarulhos",city_type:"Capital",bairro:"Vila Endres",address:"R Espanhola, 470",cep:"07043-060",tipo:"DK",lat:-23.4853,lng:-46.5491,m2:80,mesas:0,assentos:0,cozinhas:1,exp_dlv:"Exclusiva",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"27",name:"Mooca",abbr:"MOO",cnpj:"25.058.899/0027-63",owner:"Própria",regional:"SP Leste/Norte",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Vila Prudente",address:"R Cap Pacheco e Chaves, 313",cep:"03126-000",tipo:"Shopping",lat:-23.5803,lng:-46.5937,m2:149,mesas:21,assentos:80,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"30",name:"Morumbi Town",abbr:"MOT",cnpj:"25.058.899/0030-69",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Vila Andrade",address:"Av Giovanni Gronchi, 5930",cep:"05724-002",tipo:"Shopping",lat:-23.6314,lng:-46.7373,m2:129,mesas:18,assentos:94,cozinhas:1,exp_dlv:"Exclusiva",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"32",name:"Tatuapé",abbr:"TAT",cnpj:"25.058.899/0032-20",owner:"Própria",regional:"SP Leste/Norte",reg_name:"",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Jd Anália Franco",address:"R Eleonora Cintra, 241",cep:"03337-000",tipo:"Rua",lat:-23.5542,lng:-46.5612,m2:537,mesas:31,assentos:97,cozinhas:1,exp_dlv:"Exclusiva",turnos:"3T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"São Caetano",abbr:"SCS",cnpj:"53.869.527/0001-13",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"São Caetano do Sul",city_type:"Interior",bairro:"Cerâmica",address:"Al Terracota, 545",cep:"09531-190",tipo:"Shopping",lat:-23.6256,lng:-46.5783,m2:173,mesas:33,assentos:83,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"São José dos Campos",abbr:"SJC",cnpj:"54.022.145/0001-12",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"São José dos Campos",city_type:"Interior",bairro:"Pq Res Aquarius",address:"Av Com Vicente P. Penido, 267",cep:"12246-856",tipo:"Shopping",lat:-23.2148,lng:-45.9016,m2:298,mesas:63,assentos:166,cozinhas:1,exp_dlv:"Exclusiva",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Osasco",abbr:"OSA",cnpj:"53.757.260/0001-72",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Osasco",city_type:"Capital",bairro:"Pq Continental",address:"Av Leão Machado, 100",cep:"05328-020",tipo:"Shopping",lat:-23.5476,lng:-46.7549,m2:130,mesas:40,assentos:64,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Jundiaí",abbr:"JUN",cnpj:"55.216.316/0001-07",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Jundiaí",city_type:"Interior",bairro:"Jd Ana Maria",address:"R Barão de Teffé, 160",cep:"13208-760",tipo:"Rua",lat:-23.1888,lng:-46.8937,m2:230,mesas:40,assentos:83,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Aeroporto T2",abbr:"GR2",cnpj:"48.729.130/0001-96",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Guarulhos",city_type:"Capital",bairro:"Aeroporto",address:"Rod Hélio Smidt — Terminal 2",cep:"07190-100",tipo:"Aeroporto",lat:-23.4246,lng:-46.4727,m2:99,mesas:20,assentos:44,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Aeroporto T3",abbr:"GR3",cnpj:"48.729.130/0002-77",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Guarulhos",city_type:"Capital",bairro:"Aeroporto",address:"Rod Hélio Smidt — Terminal 3",cep:"07190-100",tipo:"Aeroporto",lat:-23.4567,lng:-46.4846,m2:null,mesas:27,assentos:58,cozinhas:1,exp_dlv:"",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Top Center",abbr:"TOP",cnpj:"56.416.389/0001-05",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"São Paulo",city_type:"Capital",bairro:"Bela Vista",address:"Av Paulista, 854",cep:"01310-913",tipo:"Shopping",lat:-23.5656,lng:-46.6505,m2:182,mesas:16,assentos:59,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Mogi das Cruzes",abbr:"MOG",cnpj:"60.511.054/0001-43",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Mogi das Cruzes",city_type:"Interior",bairro:"Centro Cívico",address:"Av Ver Narciso Y. Guimarães, 1001",cep:"08780-000",tipo:"Shopping",lat:-23.5156,lng:-46.1792,m2:123,mesas:25,assentos:60,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""},
+  {status:"Ativa",cluster:"",cod:"FR",name:"Santos",abbr:"STG",cnpj:"60.042.692/0001-62",owner:"Franquia",regional:"Franquia",reg_name:"Springman",state:"SP",city:"Santos",city_type:"Litoral",bairro:"Ponta da Praia",address:"Av Gen San Martin, 124",cep:"11030-250",tipo:"Rua",lat:-23.9839,lng:-46.2975,m2:null,mesas:24,assentos:78,cozinhas:1,exp_dlv:"Hibrida",turnos:"2T",obs:""}
+];
+
+// ── SUPABASE FUNCTIONS ──
+async function sbFetch(path,opts){
+  var r=await fetch(SB_URL+'/rest/v1/'+path,Object.assign({headers:HDR},opts||{}));
+  if(!r.ok){var t=await r.text();throw new Error(r.status+': '+t)}
+  var txt=await r.text();return txt?JSON.parse(txt):[];
+}
+async function loadFromDB(){
+  try{
+    var data=await sbFetch('lojas?select=*&order=name');
+    if(data.length===0){
+      await sbFetch('lojas',{method:'POST',body:JSON.stringify(SEED)});
+      data=await sbFetch('lojas?select=*&order=name');
+    }
+    stores=data;
+    setSyncStatus('ok');
+    showToast('Dados carregados do Supabase ('+stores.length+' lojas)');
+  }catch(e){
+    console.error('Supabase error:',e);
+    stores=JSON.parse(JSON.stringify(SEED));
+    setSyncStatus('err');
+    showToast('Sem conexão com Supabase. Usando dados locais.','err');
+  }
+  initApp();
+}
+async function saveRow(s){
+  if(!s.id)return;
+  try{
+    var body=Object.assign({},s);delete body.id;
+    await sbFetch('lojas?id=eq.'+s.id,{method:'PATCH',body:JSON.stringify(body)});
+  }catch(e){console.error('Save error:',e)}
+}
+async function insertRow(s){
+  try{
+    var body=Object.assign({},s);delete body.id;
+    var res=await sbFetch('lojas',{method:'POST',body:JSON.stringify(body)});
+    if(res&&res[0])return res[0];
+  }catch(e){console.error('Insert error:',e)}
+  return null;
+}
+async function saveAll(){
+  setSyncStatus('loading');
+  var errs=0;
+  for(var i=0;i<stores.length;i++){
+    try{
+      if(stores[i].id){
+        var body=Object.assign({},stores[i]);delete body.id;
+        await sbFetch('lojas?id=eq.'+stores[i].id,{method:'PATCH',body:JSON.stringify(body)});
+      }else{
+        var res=await insertRow(stores[i]);
+        if(res)stores[i]=res;
+      }
+    }catch(e){errs++;console.error(e)}
+  }
+  if(errs===0){setSyncStatus('ok');showToast('Todas as alterações salvas no Supabase!')}
+  else{setSyncStatus('err');showToast(errs+' erro(s) ao salvar.','err')}
+  refreshMap();
+}
+
+function setSyncStatus(s){
+  var el=document.getElementById('syncStatus');
+  el.innerHTML='<span class="sync-dot sync-'+s+'"></span>';
+}
+function showToast(msg,type){
+  var t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(type==='err'?' err':'');
+  setTimeout(function(){t.className='toast'},3000);
+}
+
+// ── UI ──
+function switchTab(t){
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});
+  if(t==='map'){
+    document.getElementById('mapView').classList.remove('hidden');
+    document.getElementById('tableView').classList.add('hidden');
+    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    setTimeout(function(){map.invalidateSize()},100);
+  }else{
+    document.getElementById('mapView').classList.add('hidden');
+    document.getElementById('tableView').classList.remove('hidden');
+    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+    renderTable();
+  }
+}
+function renderTable(){
+  var q=(document.getElementById('tableSearch').value||'').toLowerCase();
+  var html='<table class="data-table"><thead><tr>';
+  colNames.forEach(function(c){html+='<th>'+c+'</th>'});
+  html+='</tr></thead><tbody>';
+  var count=0;
+  stores.forEach(function(s,i){
+    var searchStr=(s.name+s.bairro+s.city+s.abbr+(s.cluster||'')).toLowerCase();
+    if(q&&!searchStr.includes(q))return;count++;
+    html+='<tr>';
+    cols.forEach(function(c){
+      var v=s[c]!=null?s[c]:'';
+      if(dropdowns[c]){
+        html+='<td><select onchange="updateCell('+i+',\''+c+'\',this.value)">';
+        dropdowns[c].forEach(function(opt){html+='<option'+(String(v)===opt?' selected':'')+'>'+opt+'</option>'});
+        html+='</select></td>';
+      }else{
+        html+='<td contenteditable="true" onblur="updateCell('+i+',\''+c+'\',this.textContent)">'+v+'</td>';
+      }
+    });
+    html+='</tr>';
+  });
+  html+='</tbody></table>';
+  document.getElementById('tableWrap').innerHTML=html;
+  document.getElementById('tableFooter').innerHTML='<span><strong>'+count+'</strong> lojas exibidas</span><span style="font-size:11px;color:#c5c9c0">Edite nas células  |  Clique "Salvar Alterações" para persistir no Supabase</span>';
+}
+function updateCell(i,field,val){
+  if(['lat','lng','m2','mesas','assentos','cozinhas'].indexOf(field)>=0){var n=parseFloat(val);if(!isNaN(n))val=n}
+  stores[i][field]=val;
+}
+async function addRow(){
+  var ns={status:"Planejada",cluster:"",cod:"",name:"Nova Loja",abbr:"NEW",cnpj:"",owner:"Própria",regional:"SP Oeste",reg_name:"",state:"SP",city:"",city_type:"Capital",bairro:"",address:"",cep:"",tipo:"Rua",lat:-23.55,lng:-46.65,m2:null,mesas:0,assentos:0,cozinhas:1,exp_dlv:"",turnos:"",obs:""};
+  var res=await insertRow(ns);
+  stores.push(res||ns);
+  renderTable();
+  var tw=document.getElementById('tableWrap');tw.scrollTop=tw.scrollHeight;
+  showToast('Nova loja adicionada.');
+}
+function exportCSV(){
+  var csv=colNames.join(';')+'\n';
+  stores.forEach(function(s){csv+=cols.map(function(c){var v=s[c]!=null?String(s[c]):'';return v.includes(';')?'"'+v+'"':v}).join(';')+'\n'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));a.download='cabana_cadastro_lojas.csv';a.click();
+  showToast('CSV exportado!');
+}
+
+// ── MAP ──
+function makeIcon(s){
+  var c=colors[s.regional]||'#888';
+  var st=s.status||'Ativa';
+  var shape='',sz=34,anch=17;
+  if(st==='Ativa'){
+    shape='<div style="width:34px;height:34px;border-radius:50%;background:'+c+';border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;transition:transform .2s;cursor:pointer" onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'scale(1)\'"><span style="color:#fff;font-size:9px;font-weight:700;font-family:DM Sans,sans-serif">'+s.abbr+'</span></div>';
+  } else if(st==='Inativa'){
+    shape='<svg width="38" height="34" viewBox="0 0 38 34" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,.22));cursor:pointer;transition:transform .2s" onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'scale(1)\'"><polygon points="19,2 36,32 2,32" fill="'+c+'" stroke="#fff" stroke-width="3" opacity=".6"/><text x="19" y="25" text-anchor="middle" fill="#fff" font-size="8" font-weight="700" font-family="DM Sans,sans-serif">'+s.abbr+'</text></svg>';
+    sz=38;anch=19;
+  } else if(st==='Em obras'){
+    shape='<div style="width:34px;height:34px;border-radius:6px;background:'+c+';border:3px dashed #fff;box-shadow:0 2px 8px rgba(0,0,0,.22);display:flex;align-items:center;justify-content:center;opacity:.75;transition:transform .2s;cursor:pointer" onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'scale(1)\'"><span style="color:#fff;font-size:9px;font-weight:700;font-family:DM Sans,sans-serif">'+s.abbr+'</span></div>';
+  } else if(st==='Planejada'){
+    shape='<div style="width:34px;height:34px;border-radius:50%;background:transparent;border:3px dashed '+c+';box-shadow:0 2px 8px rgba(0,0,0,.1);display:flex;align-items:center;justify-content:center;transition:transform .2s;cursor:pointer" onmouseenter="this.style.transform=\'scale(1.2)\'" onmouseleave="this.style.transform=\'scale(1)\'"><span style="color:'+c+';font-size:9px;font-weight:700;font-family:DM Sans,sans-serif">'+s.abbr+'</span></div>';
+  }
+  return L.divIcon({className:'',iconSize:[sz,sz],iconAnchor:[anch,anch],popupAnchor:[0,-anch],html:shape});
+}
+function makePopup(s){
+  var cl=s.cluster?'<div class="pop-item"><span class="pop-label">Cluster</span><span class="pop-val">'+s.cluster+'</span></div>':'';
+  return '<div class="pop-header"><div class="pop-icon">'+s.abbr+'</div><div><div class="pop-name">'+s.name+'</div><div class="pop-addr">'+s.address+'</div></div></div><div class="pop-grid"><div class="pop-item"><span class="pop-label">Status</span><span class="pop-val">'+s.status+'</span></div><div class="pop-item"><span class="pop-label">Bairro</span><span class="pop-val">'+s.bairro+'</span></div><div class="pop-item"><span class="pop-label">Cidade</span><span class="pop-val">'+s.city+'</span></div><div class="pop-item"><span class="pop-label">Modelo</span><span class="pop-val">'+s.owner+'</span></div><div class="pop-item"><span class="pop-label">Tipo</span><span class="pop-val">'+s.tipo+'</span></div><div class="pop-item"><span class="pop-label">Metragem</span><span class="pop-val">'+(s.m2||'—')+' m²</span></div><div class="pop-item"><span class="pop-label">Regional</span><span class="pop-val">'+s.regional+'</span></div>'+cl+'<div class="pop-item"><span class="pop-label">Mesas</span><span class="pop-val">'+s.mesas+'</span></div><div class="pop-item"><span class="pop-label">Assentos</span><span class="pop-val">'+s.assentos+'</span></div></div>';
+}
+function refreshMap(){
+  markers.forEach(function(o){map.removeLayer(o.marker)});markers=[];
+  stores.forEach(function(s){
+    var m=L.marker([s.lat,s.lng],{icon:makeIcon(s)}).addTo(map);
+    m.bindPopup(makePopup(s),{maxWidth:300});markers.push({marker:m,store:s});
+  });
+  updateKPIs(stores);renderMapList(stores);
+  if(stores.length>0)map.fitBounds(L.latLngBounds(stores.map(function(s){return[s.lat,s.lng]})),{padding:[50,50],maxZoom:13});
+}
+function updateKPIs(list){
+  document.getElementById('k-total').textContent=list.length;
+  document.getElementById('k-own').textContent=list.filter(function(s){return s.owner==='Própria'}).length;
+  document.getElementById('k-fran').textContent=list.filter(function(s){return s.owner==='Franquia'}).length;
+  var states=new Set(list.map(function(s){return s.state}));
+  document.getElementById('k-states').textContent=states.size;
+}
+var activeMapFilter='Todas';
+function applyMapFilter(f){
+  activeMapFilter=f;
+  var q=document.getElementById('search').value.toLowerCase();
+  var visible=stores.slice();
+  if(f==='Ativa'||f==='Inativa'||f==='Em obras'||f==='Planejada')visible=stores.filter(function(s){return s.status===f});
+  else if(f==='SP Oeste')visible=stores.filter(function(s){return s.regional==='SP Oeste'});
+  else if(f==='SP Leste/Norte')visible=stores.filter(function(s){return s.regional==='SP Leste/Norte'});
+  else if(f==='SP Sul')visible=stores.filter(function(s){return s.regional==='SP Sul'});
+  else if(f==='RJ')visible=stores.filter(function(s){return s.regional==='RJ'});
+  else if(f==='Franquia')visible=stores.filter(function(s){return s.regional==='Franquia'});
+  else if(f==='Própria')visible=stores.filter(function(s){return s.owner==='Própria'});
+  else if(f==='Shopping')visible=stores.filter(function(s){return s.tipo==='Shopping'});
+  else if(f==='Rua')visible=stores.filter(function(s){return s.tipo==='Rua'});
+  else if(f==='Aeroporto')visible=stores.filter(function(s){return s.tipo==='Aeroporto'});
+  if(q)visible=visible.filter(function(s){return(s.name+s.bairro+s.city+s.abbr).toLowerCase().includes(q)});
+  var vn=new Set(visible.map(function(s){return s.name}));
+  markers.forEach(function(o){if(vn.has(o.store.name))o.marker.addTo(map);else map.removeLayer(o.marker)});
+  updateKPIs(visible);
+  document.getElementById('count-bar').innerHTML='Exibindo <strong>'+visible.length+'</strong> de '+stores.length+' unidades';
+  if(visible.length>0)map.fitBounds(L.latLngBounds(visible.map(function(s){return[s.lat,s.lng]})),{padding:[50,50],maxZoom:13});
+  renderMapList(visible);
+  setTimeout(updateMapCounter,300);
+}
+function renderMapList(list){
+  var el=document.getElementById('store-list');el.innerHTML='';
+  list.sort(function(a,b){return a.name.localeCompare(b.name)});
+  list.forEach(function(s){
+    var c=document.createElement('div');c.className='store-card';
+    var ob=s.owner==='Própria'?'b-propria':'b-franquia';
+    var tb=s.tipo==='Shopping'?'b-shopping':s.tipo==='Rua'?'b-rua':s.tipo==='Aeroporto'?'b-aeroporto':'b-dk';
+    var stB=s.status==='Ativa'?'':'<span class="sc-badge" style="background:'+(s.status==='Inativa'?'#fdecea;color:#c0392b':s.status==='Em obras'?'#fef4e0;color:#8a5a0a':'#e8f0fc;color:#1a5ab8')+'">'+s.status+'</span>';
+    var clB=s.cluster?'<span class="sc-badge" style="background:#eef8f3;color:#0f6e4e;font-weight:700">'+s.cluster+'</span>':'';
+    c.innerHTML='<div class="sc-top"><span class="sc-name">'+s.name+'</span><span class="sc-abbr">'+s.abbr+'</span></div><div class="sc-addr">'+s.address+' — '+s.bairro+', '+s.city+'</div><div class="sc-badges"><span class="sc-badge '+ob+'">'+s.owner+'</span><span class="sc-badge '+tb+'">'+s.tipo+'</span>'+stB+clB+'</div><div class="sc-stats"><span><strong>'+(s.m2||'—')+'</strong> m²</span><span><strong>'+s.mesas+'</strong> mesas</span><span><strong>'+s.assentos+'</strong> lugares</span></div>';
+    c.onclick=function(){
+      document.querySelectorAll('.store-card').forEach(function(x){x.classList.remove('selected')});
+      c.classList.add('selected');map.setView([s.lat,s.lng],16);
+      var found=markers.find(function(m){return m.store.name===s.name});
+      if(found)found.marker.openPopup();
+    };
+    el.appendChild(c);
+  });
+}
+
+// ── INIT ──
+map=L.map('map',{zoomControl:false}).setView([-23.55,-46.65],10);
+L.control.zoom({position:'topright'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'OpenStreetMap, CARTO',maxZoom:19,subdomains:'abcd'}).addTo(map);
+
+var filterLabels=['Todas','Ativa','Inativa','Em obras','Planejada','|','SP Oeste','SP Leste/Norte','SP Sul','RJ','Franquia','|','Própria','Shopping','Rua','Aeroporto'];
+var filtersEl=document.getElementById('filters');
+filterLabels.forEach(function(f,i){
+  if(f==='|'){var sp=document.createElement('div');sp.style.cssText='width:1px;height:20px;background:#e5e8e0;margin:0 2px;align-self:center';filtersEl.appendChild(sp);return}
+  var b=document.createElement('button');b.className='fbtn'+(f==='Todas'?' active':'');b.textContent=f;
+  b.onclick=function(){document.querySelectorAll('.fbtn').forEach(function(x){x.classList.remove('active')});b.classList.add('active');applyMapFilter(f)};
+  filtersEl.appendChild(b);
+});
+document.getElementById('search').addEventListener('input',function(){applyMapFilter(activeMapFilter)});
+document.getElementById('tableSearch').addEventListener('input',function(){renderTable()});
+
+// Prevent Leaflet from capturing clicks on legend and overlap panel
+var legendEl=document.querySelector('.legend');
+if(legendEl){L.DomEvent.disableClickPropagation(legendEl);L.DomEvent.disableScrollPropagation(legendEl)}
+var overlapEl=document.getElementById('overlapPanel');
+if(overlapEl){L.DomEvent.disableClickPropagation(overlapEl);L.DomEvent.disableScrollPropagation(overlapEl)}
+var counterEl=document.getElementById('mapCounter');
+if(counterEl)L.DomEvent.disableClickPropagation(counterEl);
+
+function updateMapCounter(){
+  var bounds=map.getBounds();
+  var cabanaCount=0,bullguerCount=0;
+  markers.forEach(function(o){
+    if(map.hasLayer(o.marker)&&bounds.contains(o.marker.getLatLng()))cabanaCount++;
+  });
+  bullguerMarkers.forEach(function(m){
+    if(map.hasLayer(m)&&bounds.contains(m.getLatLng()))bullguerCount++;
+  });
+  var text=cabanaCount+' Cabana';
+  if(bullguerVisible)text+=' · '+bullguerCount+' Bullguer';
+  text+=' na área visível';
+  document.getElementById('mapCounterText').textContent=text;
+}
+map.on('moveend',updateMapCounter);
+map.on('zoomend',updateMapCounter);
+
+function initApp(){refreshMap();setTimeout(updateMapCounter,500)}
+loadFromDB();
+
+// ── BULLGUER CONCORRÊNCIA ──
+var bullguerStores=[
+  {name:"Anália Franco",lat:-23.5535,lng:-46.5630,address:"R Eleonora Cintra, 500",bairro:"Jd Anália Franco",city:"São Paulo"},
+  {name:"República",lat:-23.5430,lng:-46.6430,address:"Av Ipiranga, 197",bairro:"República",city:"São Paulo"},
+  {name:"Vila Madalena",lat:-23.5530,lng:-46.6910,address:"R Fradique Coutinho, 1136",bairro:"Vila Madalena",city:"São Paulo"},
+  {name:"Berrini",lat:-23.5960,lng:-46.6900,address:"Av Eng Luiz Carlos Berrini, 1021",bairro:"Cidade Monções",city:"São Paulo"},
+  {name:"Eldorado",lat:-23.5729,lng:-46.6954,address:"Av Rebouças, 3970",bairro:"Pinheiros",city:"São Paulo"},
+  {name:"Jardins",lat:-23.5615,lng:-46.6595,address:"R Peixoto Gomide, 1088",bairro:"Jardim Paulista",city:"São Paulo"},
+  {name:"Jardim Paulista",lat:-23.5710,lng:-46.6590,address:"R Pamplona, 1704",bairro:"Jardim Paulista",city:"São Paulo"},
+  {name:"Vila Nova Conceição",lat:-23.5870,lng:-46.6700,address:"R Diogo Jácome, 606",bairro:"Vila Nova Conceição",city:"São Paulo"},
+  {name:"Vila Olímpia",lat:-23.5960,lng:-46.6830,address:"R Olimpíadas, 360",bairro:"Vila Olímpia",city:"São Paulo"},
+  {name:"Cerro Corá",lat:-23.5370,lng:-46.7040,address:"R Cerro Corá, 1984",bairro:"Vila Romana",city:"São Paulo"},
+  {name:"Vila Mariana",lat:-23.5925,lng:-46.6370,address:"R Loefgreen, 1260",bairro:"Vila Mariana",city:"São Paulo"},
+  {name:"Paraíso",lat:-23.5725,lng:-46.6445,address:"R Des Eliseu Guilherme, 200",bairro:"Paraíso",city:"São Paulo"},
+  {name:"Perdizes",lat:-23.5275,lng:-46.6790,address:"R Traipú, 156",bairro:"Perdizes",city:"São Paulo"},
+  {name:"Santana",lat:-23.5050,lng:-46.6280,address:"R Ana Benvinda de Andrade, 192",bairro:"Santana",city:"São Paulo"},
+  {name:"Shopping Light",lat:-23.5470,lng:-46.6380,address:"R Cel Xavier de Toledo, 23",bairro:"Centro",city:"São Paulo"},
+  {name:"Morumbi",lat:-23.6230,lng:-46.7350,address:"R Crésilas (Morumbi Town)",bairro:"Vila Andrade",city:"São Paulo"},
+  {name:"Vila Gertrudes",lat:-23.6160,lng:-46.6960,address:"Av das Nações Unidas, 15187",bairro:"Chác Santo Antônio",city:"São Paulo"},
+  {name:"Mooca Plaza",lat:-23.5803,lng:-46.5937,address:"R Cap Pacheco e Chaves, 313",bairro:"Mooca",city:"São Paulo"},
+  {name:"Campinas",lat:-22.8917,lng:-47.0256,address:"Av Iguatemi, 777",bairro:"Vila Brandina",city:"Campinas"},
+  {name:"Jundiaí",lat:-23.1900,lng:-46.8840,address:"Av Nove de Julho, 3333",bairro:"Anhangabaú",city:"Jundiaí"},
+  {name:"Osasco",lat:-23.5320,lng:-46.7920,address:"Av dos Autonomistas, 1828",bairro:"Vila Campesina",city:"Osasco"},
+  {name:"Santo André",lat:-23.6560,lng:-46.5280,address:"Av Portugal, 1617",bairro:"Centro",city:"Santo André"},
+  {name:"São Caetano",lat:-23.6210,lng:-46.5690,address:"R Marechal Deodoro, 126",bairro:"Centro",city:"São Caetano do Sul"},
+  {name:"São José (Aquarius)",lat:-23.2030,lng:-45.8870,address:"Av Cassiano Ricardo, 401",bairro:"Jd Aquarius",city:"São José dos Campos"},
+  {name:"São José (Urbanova)",lat:-23.2280,lng:-45.9300,address:"Av Shishima Hifumi, 2101",bairro:"Urbanova",city:"São José dos Campos"},
+  {name:"Tijuca (RJ)",lat:-22.9210,lng:-43.2310,address:"Shopping Tijuca",bairro:"Tijuca",city:"Rio de Janeiro"},
+  {name:"Brasília",lat:-15.8110,lng:-47.9220,address:"CLS 410, Bloco C, Loja 5",bairro:"Asa Sul",city:"Brasília"},
+  {name:"São Roque",lat:-23.5290,lng:-47.1350,address:"Rod Pres Castello Branco, Km 60",bairro:"São Roque",city:"São Roque"}
+];
+
+var bullguerMarkers=[];
+var bullguerVisible=false;
+
+function makeBullguerIcon(s){
+  return L.divIcon({className:'',iconSize:[28,28],iconAnchor:[14,14],popupAnchor:[0,-14],
+    html:'<div style="width:28px;height:28px;border-radius:4px;background:#222;border:2px solid #d4a017;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s" onmouseenter="this.style.transform=\'scale(1.15)\'" onmouseleave="this.style.transform=\'scale(1)\'"><span style="color:#d4a017;font-size:8px;font-weight:700;font-family:DM Sans,sans-serif">BG</span></div>'});
+}
+
+function toggleBullguer(){
+  bullguerVisible=!bullguerVisible;
+  var btn=document.getElementById('btnBullguer');
+  if(bullguerVisible){
+    btn.classList.add('active');
+    btn.style.background='#222';btn.style.color='#d4a017';btn.style.borderColor='#d4a017';
+    bullguerStores.forEach(function(s){
+      var m=L.marker([s.lat,s.lng],{icon:makeBullguerIcon(s)}).addTo(map);
+      m.bindPopup('<div style="font-family:DM Sans,sans-serif"><div style="font-weight:700;font-size:14px;color:#222;margin-bottom:4px">Bullguer — '+s.name+'</div><div style="font-size:12px;color:#888;margin-bottom:6px">'+s.address+'</div><div style="font-size:12px"><span style="color:#999">Bairro:</span> <strong>'+s.bairro+'</strong></div><div style="font-size:12px"><span style="color:#999">Cidade:</span> <strong>'+s.city+'</strong></div></div>',{maxWidth:250});
+      bullguerMarkers.push(m);
+    });
+    showToast('Bullguer: '+bullguerStores.length+' lojas exibidas no mapa');
+    setTimeout(updateMapCounter,200);
+  }else{
+    btn.classList.remove('active');
+    btn.style.background='';btn.style.color='';btn.style.borderColor='';
+    bullguerMarkers.forEach(function(m){map.removeLayer(m)});
+    bullguerMarkers=[];
+    setTimeout(updateMapCounter,200);
+  }
+}
+
+// ── RAIO DE ATUAÇÃO + ANÁLISE DE SOBREPOSIÇÃO ──
+var radiusCircles=[];
+var activeRadius=0;
+
+function distKm(lat1,lng1,lat2,lng2){
+  var R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function toggleRadius(km){
+  console.log('toggleRadius called with km='+km+', stores count='+stores.length);
+  var btn3=document.getElementById('btnR3'),btn5=document.getElementById('btnR5');
+  // Clear existing
+  radiusCircles.forEach(function(c){map.removeLayer(c)});
+  radiusCircles=[];
+  btn3.style.background='';btn3.style.color='';btn3.style.borderColor='';
+  btn5.style.background='';btn5.style.color='';btn5.style.borderColor='';
+
+  if(activeRadius===km){activeRadius=0;document.getElementById('overlapPanel').style.display='none';return}
+  activeRadius=km;
+  var btn=km===3?btn3:btn5;
+  btn.style.background='#1D9E75';btn.style.color='#fff';btn.style.borderColor='#1D9E75';
+
+  // Use stores or fallback to SEED
+  var src=stores.length>0?stores:SEED;
+  var activeStores=src.filter(function(s){return s.status==='Ativa'});
+  console.log('Drawing circles for '+activeStores.length+' active stores');
+  var clrs={Franquia:'#e67e22','RJ':'#9b59b6','SP Leste/Norte':'#2563eb','SP Oeste':'#1D9E75','SP Sul':'#e74c3c'};
+
+  // Draw Cabana circles
+  activeStores.forEach(function(s){
+    var c=L.circle([s.lat,s.lng],{radius:km*1000,color:clrs[s.regional]||'#888',weight:2.5,fillColor:clrs[s.regional]||'#888',fillOpacity:.1,dashArray:'8,5'}).addTo(map);
+    c.bringToBack();
+    radiusCircles.push(c);
+  });
+
+  // Cabana x Cabana overlap analysis
+  var cabanaOverlaps=[];
+  for(var i=0;i<activeStores.length;i++){
+    for(var j=i+1;j<activeStores.length;j++){
+      var d=distKm(activeStores[i].lat,activeStores[i].lng,activeStores[j].lat,activeStores[j].lng);
+      if(d<km*2){
+        cabanaOverlaps.push({a:activeStores[i].name,b:activeStores[j].name,dist:d});
+      }
+    }
+  }
+
+  // Cabana x Bullguer overlap analysis per Cabana store
+  var bgOverlap={};
+  activeStores.forEach(function(s){bgOverlap[s.name]=0});
+  activeStores.forEach(function(s){
+    bullguerStores.forEach(function(bg){
+      var d=distKm(s.lat,s.lng,bg.lat,bg.lng);
+      if(d<km) bgOverlap[s.name]++;
+    });
+  });
+
+  // Classify: alta (3+), media (1-2), nenhuma (0)
+  var alta=[],media=[],nenhuma=[];
+  activeStores.forEach(function(s){
+    var n=bgOverlap[s.name];
+    if(n>=3)alta.push({name:s.name,count:n});
+    else if(n>=1)media.push({name:s.name,count:n});
+    else nenhuma.push(s.name);
+  });
+
+  // Build panel
+  var html='';
+
+  // Cabana x Cabana
+  if(cabanaOverlaps.length>0){
+    html+='<div style="font-weight:700;color:#0f6e4e;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Sobreposição Cabana × Cabana</div>';
+    cabanaOverlaps.sort(function(a,b){return a.dist-b.dist});
+    cabanaOverlaps.forEach(function(o){
+      html+='<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #eef0ec"><span>'+o.a+' × '+o.b+'</span><span style="font-weight:600;color:#e74c3c">'+o.dist.toFixed(1)+' km</span></div>';
+    });
+    html+='<div style="margin-top:2px;margin-bottom:8px;font-size:10px;color:#9ea39a">'+cabanaOverlaps.length+' par(es) com sobreposição no raio de '+km+' km</div>';
+  }else{
+    html+='<div style="font-weight:700;color:#0f6e4e;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Sobreposição Cabana × Cabana</div>';
+    html+='<div style="color:#9ea39a;margin-bottom:8px">Nenhuma sobreposição no raio de '+km+' km</div>';
+  }
+
+  // Cabana x Bullguer
+  html+='<div style="border-top:1px solid #eef0ec;padding-top:6px;font-weight:700;color:#0f6e4e;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:.5px">Concorrência Bullguer (raio '+km+' km)</div>';
+  if(alta.length>0){
+    html+='<div style="margin-bottom:4px"><span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#fdecea;color:#c0392b;font-weight:600;font-size:10px">Alta</span> '+alta.length+' loja(s)</div>';
+    alta.forEach(function(o){html+='<div style="padding:1px 0;color:#c0392b">• '+o.name+' <span style="font-weight:600">('+o.count+' Bullguer)</span></div>'});
+  }
+  if(media.length>0){
+    html+='<div style="margin-bottom:4px;margin-top:4px"><span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#fef4e0;color:#8a5a0a;font-weight:600;font-size:10px">Média</span> '+media.length+' loja(s)</div>';
+    media.forEach(function(o){html+='<div style="padding:1px 0;color:#8a5a0a">• '+o.name+' <span style="font-weight:600">('+o.count+' Bullguer)</span></div>'});
+  }
+  if(nenhuma.length>0){
+    html+='<div style="margin-bottom:4px;margin-top:4px"><span style="display:inline-block;padding:1px 8px;border-radius:8px;background:#daf2e8;color:#0f6e4e;font-weight:600;font-size:10px">Nenhuma</span> '+nenhuma.length+' loja(s)</div>';
+    html+='<div style="padding:1px 0;color:#0f6e4e">'+nenhuma.join(', ')+'</div>';
+  }
+
+  document.getElementById('overlapContent').innerHTML=html;
+  document.getElementById('overlapPanel').style.display='block';
+  showToast('Raio de '+km+' km ativado — '+cabanaOverlaps.length+' sobreposições Cabana, '+alta.length+' alta concorrência Bullguer');
+}
+
+function closeOverlapPanel(){
+  document.getElementById('overlapPanel').style.display='none';
+}
+</script>
+</body>
+</html>
