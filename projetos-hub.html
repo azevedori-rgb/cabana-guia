@@ -590,6 +590,32 @@ window.__supabaseBlocked = false;
     display: block; margin-bottom: 2px;
   }
 
+  /* MODO REUNIÃO: blocos maiores e mais legíveis pra projeção */
+  body.viewer-mode .card-update-mini {
+    font-size: 14px;
+    padding: 10px 12px;
+    line-height: 1.5;
+    -webkit-line-clamp: 6;
+  }
+  body.viewer-mode .card-update-mini .lbl {
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+  body.viewer-mode .card-next-step {
+    font-size: 14px;
+    padding: 10px 12px;
+    line-height: 1.5;
+    -webkit-line-clamp: 5;
+    margin-top: 8px;
+  }
+  body.viewer-mode .card-next-step .lbl {
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+  body.viewer-mode .card-title {
+    font-size: 19px;
+  }
+
   /* Semáforo mini inline */
   .traffic-mini {
     display: inline-block; width: 8px; height: 8px; border-radius: 50%;
@@ -1560,8 +1586,13 @@ function computeFarol(p) {
   const today = new Date(); today.setHours(0,0,0,0);
   const due = new Date(refDeadline + 'T00:00:00');
   const diff = Math.round((due - today) / 86400000);
+  // 🔴 Vermelho: prazo Admin já passou
   if (diff < 0) return 'vermelho';
+  // 🟡 Amarelo: prazo Admin se aproxima (≤15 dias)
   if (diff <= FAROL_DAYS_WARN) return 'amarelo';
+  // 🟡 Amarelo: Dono prevê entregar DEPOIS do prazo Admin (risco operacional)
+  if (p.deadline_owner && p.deadline_admin && p.deadline_owner > p.deadline_admin) return 'amarelo';
+  // 🟢 Verde: tudo no prazo
   return 'verde';
 }
 
@@ -1597,6 +1628,9 @@ function migrateProject(p) {
 // INIT
 // ============================================================
 function showOfflineBanner(msg) {
+  // Só Admin vê o banner técnico — Donos e Modo Reunião não precisam ver
+  if (currentRole && currentRole !== 'admin') return;
+
   let el = document.getElementById('offlineBanner');
   if (!el) {
     el = document.createElement('div');
@@ -1606,6 +1640,15 @@ function showOfflineBanner(msg) {
     document.body.style.paddingTop = '40px';
   }
   el.innerHTML = '⚠️ ' + msg;
+  el.style.display = '';
+}
+
+function hideOfflineBanner() {
+  const el = document.getElementById('offlineBanner');
+  if (el) {
+    el.style.display = 'none';
+    document.body.style.paddingTop = '';
+  }
 }
 
 function initSupabase() {
@@ -1616,28 +1659,39 @@ function initSupabase() {
       showOfflineBanner('Modo OFFLINE — Supabase não configurado. Dados ficam só neste navegador.');
       return;
     }
-    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-      console.warn('⚠️ Biblioteca Supabase não carregou (CDN bloqueado?). Usando localStorage.');
-      useSupabase = false;
-      showOfflineBanner('Modo OFFLINE — CDN do Supabase bloqueado pelo navegador/firewall. Dados não sincronizam.');
-      // Tenta de novo em 2 segundos (caso esteja só atrasado)
-      setTimeout(() => {
-        if (!useSupabase && window.supabase && typeof window.supabase.createClient === 'function') {
-          console.log('Supabase carregou tardiamente, reativando...');
-          sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-          useSupabase = true;
-          const el = document.getElementById('offlineBanner');
-          if (el) { el.remove(); document.body.style.paddingTop = ''; }
-          // Recarrega dados
-          if (typeof loadProjects === 'function') {
-            loadProjects().then(() => { if (typeof render === 'function') render(); });
-          }
-        }
-      }, 2000);
+    // Caminho feliz: lib já carregou no momento do init
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      useSupabase = true;
       return;
     }
-    sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-    useSupabase = true;
+    // Lib ainda não carregou — faz POLL silencioso a cada 100ms por até 3 segundos
+    // Só mostra banner se REALMENTE não chegar nesse prazo
+    let tries = 0;
+    const maxTries = 30; // 30 x 100ms = 3 segundos
+    const poll = setInterval(() => {
+      tries++;
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        clearInterval(poll);
+        sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+        useSupabase = true;
+        console.log('✓ Supabase conectado após ' + (tries * 100) + 'ms');
+        // Se já carregou dados em modo offline, recarrega do banco agora
+        if (projects.length === 0 && typeof loadProjects === 'function') {
+          loadProjects().then(() => {
+            if (typeof renderStats === 'function') renderStats();
+            if (typeof renderGrid === 'function') renderGrid();
+          });
+        }
+        return;
+      }
+      if (tries >= maxTries) {
+        clearInterval(poll);
+        console.warn('⚠️ Biblioteca Supabase não carregou em 3s. Modo offline ativado.');
+        useSupabase = false;
+        showOfflineBanner('Modo OFFLINE — CDN do Supabase bloqueado. Dados não sincronizam com o servidor.');
+      }
+    }, 100);
   } catch (e) {
     console.error('Erro init Supabase:', e);
     useSupabase = false;
@@ -1706,6 +1760,10 @@ function switchRole() {
   location.reload();
 }
 function setupRoleBanner() {
+  // Modo Reunião: classe no body deixa update e próximo passo maiores
+  document.body.classList.toggle('viewer-mode', currentRole === 'viewer');
+  // Banner offline some pra todos exceto Admin
+  if (currentRole !== 'admin') hideOfflineBanner();
   const b = document.getElementById('roleBanner');
   const btnNew = document.getElementById('btnNew');
   const btnSettings = document.getElementById('btnSettings');
@@ -4560,7 +4618,7 @@ function exportMeetingPpt() {
     let totalPages = 0;
     if (showCover) totalPages = 1;
     areaKeys.forEach(k => {
-      totalPages += Math.ceil(byArea[k].length / 8);
+      totalPages += Math.ceil(byArea[k].length / 6);
     });
     let pageNum = 0;
 
@@ -4665,7 +4723,7 @@ function exportMeetingPpt() {
       const areaInfo = AREAS[k] || { label: 'Outros', color: GRAY, bg: BG };
       const areaColor = (areaInfo.color || GREEN).replace('#', '');
       const areaBg = (areaInfo.bg || BG).replace('#', '');
-      const totalChunks = Math.ceil(projsArea.length / 8);
+      const totalChunks = Math.ceil(projsArea.length / 6);
 
       for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
         pageNum++;
@@ -4673,8 +4731,8 @@ function exportMeetingPpt() {
         slide.background = { color: 'FFFFFF' };
         addHeader(slide, `Projetos · ${areaInfo.label || ''}`);
 
-        const startIdx = chunkIdx * 8;
-        const chunk = projsArea.slice(startIdx, startIdx + 8);
+        const startIdx = chunkIdx * 6;
+        const chunk = projsArea.slice(startIdx, startIdx + 6);
 
         // Tag da área + título
         slide.addShape(pptx.ShapeType.roundRect, {
@@ -4723,16 +4781,16 @@ function exportMeetingPpt() {
           line: { color: LINE, width: 0.5 }
         });
 
-        // ===== Grid de cards 4x2 (8 cards) =====
+        // ===== Grid de cards 3x2 (6 cards) — com update e próximo passo legíveis =====
         const cardsStartY = 1.18;
-        const cardW = (13.33 - 0.5 - 0.5 - 3 * 0.18) / 4;
-        const cardH = 1.4;
+        const cardW = (13.33 - 0.5 - 0.5 - 2 * 0.2) / 3;
+        const cardH = 2.85;
         const cardGapY = 0.18;
 
         chunk.forEach((p, i) => {
-          const col = i % 4;
-          const row = Math.floor(i / 4);
-          const cx = 0.5 + col * (cardW + 0.18);
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          const cx = 0.5 + col * (cardW + 0.2);
           const cy = cardsStartY + row * (cardH + cardGapY);
 
           // Cor da borda lateral pelo status
@@ -4747,7 +4805,7 @@ function exportMeetingPpt() {
           });
           // Faixa lateral colorida
           slide.addShape(pptx.ShapeType.rect, {
-            x: cx, y: cy, w: 0.05, h: cardH,
+            x: cx, y: cy, w: 0.07, h: cardH,
             fill: { color: sideColor }, line: { color: sideColor }
           });
 
@@ -4755,49 +4813,40 @@ function exportMeetingPpt() {
           const score = p.score || 1;
           const stars = '★'.repeat(score);
           slide.addText(stars, {
-            x: cx + cardW - 1.0, y: cy + 0.06, w: 0.95, h: 0.18,
-            fontSize: 9, color: GOLD, align: 'right'
+            x: cx + cardW - 1.1, y: cy + 0.08, w: 1.0, h: 0.2,
+            fontSize: 10, color: GOLD, align: 'right'
           });
 
           // Título
           slide.addText(p.title || '—', {
-            x: cx + 0.18, y: cy + 0.08, w: cardW - 1.2, h: 0.4,
-            fontSize: 10, bold: true, color: INK, valign: 'top', fontFace: 'Calibri'
+            x: cx + 0.2, y: cy + 0.08, w: cardW - 1.25, h: 0.42,
+            fontSize: 12, bold: true, color: INK, valign: 'top', fontFace: 'Calibri'
           });
 
-          // % concluído
+          // % concluído + Dono lado a lado
           const progress = p.progress || 0;
           slide.addText(`${progress}%`, {
-            x: cx + 0.18, y: cy + 0.5, w: 1.0, h: 0.32,
-            fontSize: 18, bold: true, color: INK, valign: 'middle', fontFace: 'Calibri'
+            x: cx + 0.2, y: cy + 0.52, w: 0.85, h: 0.32,
+            fontSize: 16, bold: true, color: INK, valign: 'middle', fontFace: 'Calibri'
+          });
+          slide.addText(`👤 ${p.owner || '—'}`, {
+            x: cx + 1.05, y: cy + 0.52, w: cardW - 1.2, h: 0.32,
+            fontSize: 9, color: MUTED, fontFace: 'Calibri', valign: 'middle'
           });
 
           // Mini barra de progresso
           slide.addShape(pptx.ShapeType.roundRect, {
-            x: cx + 0.18, y: cy + 0.85, w: cardW - 0.36, h: 0.07, rectRadius: 0.035,
+            x: cx + 0.2, y: cy + 0.88, w: cardW - 0.4, h: 0.06, rectRadius: 0.03,
             fill: { color: BG }, line: { color: BG }
           });
           if (progress > 0) {
             slide.addShape(pptx.ShapeType.roundRect, {
-              x: cx + 0.18, y: cy + 0.85, w: Math.max(0.05, ((cardW - 0.36) * progress) / 100), h: 0.07, rectRadius: 0.035,
+              x: cx + 0.2, y: cy + 0.88, w: Math.max(0.05, ((cardW - 0.4) * progress) / 100), h: 0.06, rectRadius: 0.03,
               fill: { color: sideColor }, line: { color: sideColor }
             });
           }
 
-          // Dono
-          slide.addText(`👤 ${p.owner || '—'}`, {
-            x: cx + 0.18, y: cy + 0.97, w: cardW - 0.36, h: 0.2,
-            fontSize: 8, color: MUTED, fontFace: 'Calibri', valign: 'middle'
-          });
-
-          // Update atual (1 linha)
-          const updateLine = (p.update && p.update.trim()) ? p.update : 'sem update ainda';
-          slide.addText(`💬 ${updateLine}`, {
-            x: cx + 0.18, y: cy + 1.16, w: cardW - 0.36, h: 0.18,
-            fontSize: 7.5, color: '8a8a8a', italic: true, fontFace: 'Calibri', valign: 'middle'
-          });
-
-          // Prazo Admin (canto inferior direito) — cor conforme proximidade
+          // Prazo
           const dlAdmin = p.deadline_admin || p.deadline;
           const dlInfo = computeDeadlineInfo(dlAdmin);
           let dlColor = MUTED;
@@ -4805,13 +4854,43 @@ function exportMeetingPpt() {
           else if (dlInfo.cls === 'date-end-soon') dlColor = '993C1D';
           else if (dlInfo.cls === 'date-end-warn') dlColor = AMBER_DARK;
           else if (dlInfo.cls === 'date-end-ok') dlColor = GREEN_DARK;
-
           const dlText = dlAdmin
             ? `📅 ${formatDate(dlAdmin)}${dlInfo.suffix}`
-            : 'sem prazo';
+            : '📅 sem prazo';
           slide.addText(dlText, {
-            x: cx + 1.3, y: cy + 0.5, w: cardW - 1.45, h: 0.3,
-            fontSize: 8, color: dlColor, bold: dlInfo.cls === 'date-end-late' || dlInfo.cls === 'date-end-soon', align: 'right', valign: 'middle', fontFace: 'Calibri'
+            x: cx + 0.2, y: cy + 1.0, w: cardW - 0.4, h: 0.22,
+            fontSize: 9, color: dlColor, bold: dlInfo.cls === 'date-end-late' || dlInfo.cls === 'date-end-soon', valign: 'middle', fontFace: 'Calibri'
+          });
+
+          // Update atual — bloco amplo com label
+          const updateText = (p.update && p.update.trim()) ? p.update : '— sem update registrado —';
+          // Box do update
+          slide.addShape(pptx.ShapeType.rect, {
+            x: cx + 0.2, y: cy + 1.28, w: cardW - 0.4, h: 0.74,
+            fill: { color: GREEN_SOFT }, line: { color: GREEN_BORDER, width: 0.5 }
+          });
+          slide.addText('💬 UPDATE ATUAL', {
+            x: cx + 0.28, y: cy + 1.30, w: cardW - 0.5, h: 0.15,
+            fontSize: 7, bold: true, color: GREEN_DARK, charSpacing: 0.5, fontFace: 'Calibri'
+          });
+          slide.addText(updateText, {
+            x: cx + 0.28, y: cy + 1.45, w: cardW - 0.5, h: 0.55,
+            fontSize: 9, color: INK, fontFace: 'Calibri', valign: 'top'
+          });
+
+          // Próximo passo — bloco amplo com label
+          const nextText = (p.next_step && p.next_step.trim()) ? p.next_step : '— a definir —';
+          slide.addShape(pptx.ShapeType.rect, {
+            x: cx + 0.2, y: cy + 2.06, w: cardW - 0.4, h: 0.7,
+            fill: { color: AMBER_SOFT }, line: { color: AMBER, width: 0.5 }
+          });
+          slide.addText('→ PRÓXIMO PASSO', {
+            x: cx + 0.28, y: cy + 2.08, w: cardW - 0.5, h: 0.15,
+            fontSize: 7, bold: true, color: AMBER_DARK, charSpacing: 0.5, fontFace: 'Calibri'
+          });
+          slide.addText(nextText, {
+            x: cx + 0.28, y: cy + 2.23, w: cardW - 0.5, h: 0.5,
+            fontSize: 9, color: INK, fontFace: 'Calibri', valign: 'top'
           });
         });
 
