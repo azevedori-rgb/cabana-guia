@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Recuperar dados Cabana</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 720px; margin: 40px auto; padding: 20px; background: #F6F0E1; color: #0A0A0A; }
+  h1 { font-size: 32px; color: #0A6B2C; }
+  button { padding: 14px 28px; font-size: 16px; background: #0A6B2C; color: #F6F0E1; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; }
+  button:hover { background: #084d20; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .log { margin-top: 20px; padding: 16px; background: white; border-radius: 8px; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto; line-height: 1.6; }
+  .log .ok { color: #0A6B2C; }
+  .log .err { color: #c00; }
+  .stats { background: white; padding: 16px; border-radius: 8px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+<h1>🔄 Recuperar dados Cabana → Supabase</h1>
+<div class="stats">
+  <p><strong>Projetos no arquivo:</strong> 46</p>
+  <p><strong>Pessoas no arquivo:</strong> 18</p>
+</div>
+<p>Esse script vai inserir os 46 projetos direto no Supabase. As pessoas serão restauradas via API de settings.</p>
+<button id="btnImport" onclick="doImport()">▶ Restaurar agora</button>
+<div class="log" id="log"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://vjqhxnfpjjikakjkabrc.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcWh4bmZwamppa2FramthYnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NjEyNjIsImV4cCI6MjA4OTQzNzI2Mn0.srLVF_Ce2v6D3NeEccr3ZtutN7rtOj1V1shQHVDPSnI";
+
+const PROJECTS = [
+  {
+    "title": "Agenda Comites FZ",
+    "description": "",
+    "owner": "Luis Springman",
+    "supports": [],
+    "area": "franquia",
+    "score": 2,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:19:29.046Z",
+    "id": "4e3a2949-ab7c-4703-b534-5b895af1011d",
+    "created_at": "2026-04-27T18:36:29.442Z",
+    "stage": "planejamento"
+  },
+  {
+    "title": "Foto Delivery",
+    "description": "",
+    "owner": "Áquiza Souza",
+    "supports": [
+      "Beatriz Vieira",
+      "Shi"
+    ],
+    "area": "delivery",
+    "score": 5,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 15,
+    "update": ".",
+    "next_step": "",
+    "deadline": "2026-08-30",
+    "last_update_at": "2026-05-05T18:20:10.814Z",
+    "id": "81a823c5-cc88-465f-8d37-f79155869de5",
+    "created_at": "2026-04-27T18:36:29.442Z",
+    "stage": "planejamento",
+    "deadline_admin": "2026-08-30",
+    "deadline_owner": "2026-05-31",
+    "completed_at": null
+  },
+  {
+    "title": "Implementar Rappi",
+    "description": "",
+    "owner": "Áquiza Souza",
+    "supports": [],
+    "area": "delivery",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:19:19.564Z",
+    "id": "d30af3c5-70bd-44e9-9d93-ba08209c81cc",
+    "created_at": "2026-04-27T18:36:29.442Z",
+    "stage": "execucao_avanco"
+  },
+  {
+    "title": "Combou!",
+    "description": "",
+    "owner": "Áquiza Souza",
+    "supports": [],
+    "area": "delivery",
+    "score": 4,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:15:40.058Z",
+    "id": "8c045191-97d7-49a7-b58b-a394afd076f9",
+    "created_at": "2026-04-27T18:36:29.442Z",
+    "stage": "execucao_avanco"
+  },
+  {
+    "title": "Estudo Capacidasde Fabril",
+    "description": "",
+    "owner": "Marcio Sernaglia",
+    "supports": [],
+    "area": "producao",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:18:52.318Z",
+    "id": "af11babf-3d00-40e9-92dd-29122b0e6a4a",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Gestão KPIs com Gestao à Vista Fabril",
+    "description": "",
+    "owner": "Marcio Sernaglia",
+    "supports": [],
+    "area": "producao",
+    "score": 3,
+    "urgency": "media",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-07-09",
+    "last_update_at": "2026-04-27T19:58:13.601Z",
+    "id": "cb9d6b29-eedc-4e5d-9aa5-eaa251b4c549",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "original_deadline": "2026-07-09",
+    "deadline_history": [],
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-07-09",
+    "deadline_owner": "2026-07-09"
+  },
+  {
+    "title": "Internalizar Wagyu",
+    "description": "",
+    "owner": "Felipe Carmelo",
+    "supports": [],
+    "area": "est",
+    "score": 3,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "04337a3a-1dcb-4121-a01e-9c2ecb45b2b7",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "stage": "planejamento",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Linha Protein Cabana",
+    "description": "",
+    "owner": "Felipe Carmelo",
+    "supports": [],
+    "area": "est",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "24f8a349-f251-4cfe-bf5b-42bd9c43461d",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "stage": "execucao_inicio",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Digitalização Fluxo Inventario",
+    "description": "",
+    "owner": "Matheus Teoro",
+    "supports": [],
+    "area": "supply",
+    "score": 4,
+    "urgency": "media",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:16:05.453Z",
+    "id": "3fac4a41-704c-4142-8f45-087a35c4a293",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Gestão de Entrega",
+    "description": "",
+    "owner": "Matheus Teoro",
+    "supports": [],
+    "area": "supply",
+    "score": 2,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:19:46.746Z",
+    "id": "55937191-9b1f-4a09-8a7c-9f74496e39c3",
+    "created_at": "2026-04-27T18:36:29.441Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Gestao Dias de Estoque",
+    "description": "",
+    "owner": "Matheus Teoro",
+    "supports": [],
+    "area": "supply",
+    "score": 3,
+    "urgency": "media",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:17:19.120Z",
+    "id": "74bd2cd2-e49c-4a45-b34d-b9fba573c33d",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Sistema de Compras 2.0",
+    "description": "",
+    "owner": "Matheus Teoro",
+    "supports": [],
+    "area": "supply",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:17:28.615Z",
+    "id": "a417b369-21b6-4499-b91b-5b7601cbe438",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "planejamento"
+  },
+  {
+    "title": "Modelo BPO",
+    "description": "",
+    "owner": "Ana Cristina",
+    "supports": [],
+    "area": "fin",
+    "score": 4,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "7caa13dc-eace-42ad-9e05-201eb6d61a77",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Ciclo de Planejemento Anual",
+    "description": "",
+    "owner": "Andre Martins",
+    "supports": [],
+    "area": "fin",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "b2918be7-77f0-417d-b9d5-1d203240ea80",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Working Capital",
+    "description": "",
+    "owner": "Andre Martins",
+    "supports": [],
+    "area": "fin",
+    "score": 4,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "a616a190-4ef4-48c3-9a86-665487c4afd9",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Governança de P&L",
+    "description": "",
+    "owner": "Andre Martins",
+    "supports": [],
+    "area": "fin",
+    "score": 5,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "1d6d40cb-c434-43cb-9c5f-f7722bfba1ea",
+    "created_at": "2026-04-27T18:36:29.440Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Pagamento Semanal",
+    "description": "",
+    "owner": "Eloa Pinhata",
+    "supports": [],
+    "area": "fin",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "4d5ba954-4bca-4176-9c85-e6e774e869bc",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_inicio",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Nova Conciliadora",
+    "description": "",
+    "owner": "Eloa Pinhata",
+    "supports": [],
+    "area": "fin",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "fd6fdead-6cad-4e8f-9f24-6623871245e2",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Fluxo de Caixa Automatico",
+    "description": "",
+    "owner": "Eloa Pinhata",
+    "supports": [],
+    "area": "fin",
+    "score": 4,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:25.000Z",
+    "id": "7b4eb89c-932e-490e-b216-2a79306e4385",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "planejamento",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Guia de Posicionamento",
+    "description": "",
+    "owner": "Ana Cristina",
+    "supports": [],
+    "area": "ops",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 75,
+    "update": "srehtutrjutrutr",
+    "next_step": "ryreyueutrutr",
+    "deadline": "2026-05-28",
+    "last_update_at": "2026-04-27T20:00:02.519Z",
+    "id": "6606060a-0d7c-4286-b9b9-b974f221610a",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "original_deadline": "2026-05-28",
+    "deadline_history": [],
+    "stage": "execucao_final",
+    "deadline_admin": "2026-05-28",
+    "deadline_owner": "2026-05-28"
+  },
+  {
+    "title": "Oscar Freire",
+    "description": "",
+    "owner": "Ana Cristina",
+    "supports": [],
+    "area": "ops",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "34139047-df62-4275-98f8-f0a79377f6da",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Painel Gestao CMV",
+    "description": "",
+    "owner": "Rodrigo Muzetti",
+    "supports": [],
+    "area": "revenue",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:18:26.529Z",
+    "id": "6ae090e4-231e-4acd-ac96-b0bc367fe7de",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_inicio"
+  },
+  {
+    "title": "Gestao Despesas DLV",
+    "description": "",
+    "owner": "Rodrigo Muzetti",
+    "supports": [],
+    "area": "revenue",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:18:44.949Z",
+    "id": "c921780e-6a65-4391-a80e-59354188fe0f",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_avanco"
+  },
+  {
+    "title": "Jornada Cliente Salão",
+    "description": "",
+    "owner": "Renata Moraes",
+    "supports": [],
+    "area": "cx",
+    "score": 4,
+    "urgency": "media",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:16:14.327Z",
+    "id": "40ae46e1-24d8-4754-bee9-0dc608774309",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Jornada APP e QR Code",
+    "description": "",
+    "owner": "Renata Moraes",
+    "supports": [],
+    "area": "cx",
+    "score": 4,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T18:40:16.490Z",
+    "id": "cfc88d4b-239d-420a-80e2-4f406405df39",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "planejamento"
+  },
+  {
+    "title": "LED 10",
+    "description": "",
+    "owner": "Beatriz Vieira",
+    "supports": [],
+    "area": "mkt",
+    "score": 2,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 75,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "bcc1ae8c-8292-4a91-9119-4522f8afe769",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_final",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Embalagens 2.0",
+    "description": "",
+    "owner": "Beatriz Vieira",
+    "supports": [
+      "Felipe Carmelo"
+    ],
+    "area": "mkt",
+    "score": 4,
+    "urgency": "alta",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:42:13.311Z",
+    "id": "98febb52-88fe-4216-be12-a51a76670e0c",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "original_deadline": null,
+    "deadline_history": [],
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Fire",
+    "description": "",
+    "owner": "Beatriz Vieira",
+    "supports": [],
+    "area": "mkt",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 15,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "b0a80320-8bf0-48d5-8760-bcf0a36381ad",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "planejamento",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Novo Poscionamento Cabana",
+    "description": "",
+    "owner": "Beatriz Vieira",
+    "supports": [],
+    "area": "mkt",
+    "score": 3,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "f2cbfa19-53ea-482b-9b79-be98a594ed5d",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Virar Fabrica para Juicy",
+    "description": "",
+    "owner": "VAGO",
+    "supports": [],
+    "area": "b2b",
+    "score": 3,
+    "urgency": "alta",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:20:24.196Z",
+    "id": "95951d1e-3832-41d1-a806-824628efbeae",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Implementar E-commerce B2B",
+    "description": "",
+    "owner": "VAGO",
+    "supports": [],
+    "area": "b2b",
+    "score": 5,
+    "urgency": "alta",
+    "status": "vermelho",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-04-02",
+    "last_update_at": "2026-05-05T18:12:36.037Z",
+    "id": "bd20517e-c37f-4c3f-8b5b-4f21f07adfbd",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "execucao_inicio",
+    "deadline_admin": "2026-04-02",
+    "deadline_owner": "2026-05-15",
+    "completed_at": null
+  },
+  {
+    "title": "Plano Stock Option",
+    "description": "",
+    "owner": "Madalena Medeiros",
+    "supports": [],
+    "area": "juridico",
+    "score": 2,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 50,
+    "update": "dfsgsgrrey",
+    "next_step": "asfsdgrrehyre",
+    "deadline": "2026-05-31",
+    "last_update_at": "2026-04-27T19:46:01.312Z",
+    "id": "a9df2a90-9a55-4989-8531-db0371039074",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "original_deadline": "2026-05-31",
+    "deadline_history": [],
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-05-31",
+    "deadline_owner": "2026-05-31"
+  },
+  {
+    "title": "Matriz Riscos FZ",
+    "description": "",
+    "owner": "Madalena Medeiros",
+    "supports": [],
+    "area": "franquia",
+    "score": 2,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:19:53.584Z",
+    "id": "5a53db3b-2722-470c-89d1-96b9e6e6b6cf",
+    "created_at": "2026-04-27T18:36:29.439Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Sistema de Controle Copntratos",
+    "description": "",
+    "owner": "Madalena Medeiros",
+    "supports": [],
+    "area": "juridico",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:19:01.996Z",
+    "id": "24d6704d-f79f-4b7a-b44e-71b358a1b994",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Centralização Estoque Manutenção",
+    "description": "",
+    "owner": "Evandro Borovicz",
+    "supports": [],
+    "area": "manutenc",
+    "score": 3,
+    "urgency": "alta",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:16:58.845Z",
+    "id": "d0b81e1a-9c0c-473c-9323-eea3fb65f0b1",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Internalização Tecnicos",
+    "description": "",
+    "owner": "Evandro Borovicz",
+    "supports": [],
+    "area": "manutenc",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:18:33.314Z",
+    "id": "6d02502f-c749-4b58-a4bd-95404aed01d6",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_inicio"
+  },
+  {
+    "title": "Cupom Delivery Numérico",
+    "description": "",
+    "owner": "Shi",
+    "supports": [],
+    "area": "tech",
+    "score": 3,
+    "urgency": "alta",
+    "status": "cinza",
+    "progress": 0,
+    "update": "egsgrreyre",
+    "next_step": "wetewtretyre",
+    "deadline": null,
+    "last_update_at": "2026-04-27T19:24:33.324Z",
+    "id": "ee31919d-357f-4c2c-8003-b572e71cab2d",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado"
+  },
+  {
+    "title": "Virtualização CAPS/Atualizações Oracle",
+    "description": "",
+    "owner": "Shi",
+    "supports": [],
+    "area": "tech",
+    "score": 2,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "cd1fefaf-8f46-436d-831a-121e866d2956",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Rollout Smart POS",
+    "description": "",
+    "owner": "Shi",
+    "supports": [],
+    "area": "tech",
+    "score": 5,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:40:59.247Z",
+    "id": "27dbed95-23c3-4b53-abd6-5f19de19315f",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Restaurante Treinador",
+    "description": "",
+    "owner": "Silvana Novais",
+    "supports": [],
+    "area": "rh",
+    "score": 3,
+    "urgency": "media",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "5ed4d1b5-0a63-46ea-b88c-feb677be05d2",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Calendario Rotinas Corporativas",
+    "description": "",
+    "owner": "Silvana Novais",
+    "supports": [],
+    "area": "rh",
+    "score": 2,
+    "urgency": "baixa",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "052bd3e2-e747-4774-93c8-a43a05cce439",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_inicio",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Gestao Metas 2026",
+    "description": "",
+    "owner": "Silvana Novais",
+    "supports": [],
+    "area": "rh",
+    "score": 3,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "868df280-a75e-4e93-8f84-fad8cace3377",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Gestao Jornada",
+    "description": "",
+    "owner": "Eduardo Curti",
+    "supports": [],
+    "area": "rh",
+    "score": 5,
+    "urgency": "alta",
+    "status": "verde",
+    "progress": 50,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:40:53.246Z",
+    "id": "ee91bc8a-58be-4a51-af7d-79daffa87379",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_avanco",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "LiveUp",
+    "description": "",
+    "owner": "Eduardo Curti",
+    "supports": [],
+    "area": "rh",
+    "score": 4,
+    "urgency": "media",
+    "status": "verde",
+    "progress": 30,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "065ef765-194b-42c7-89f6-71924da74bd2",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "execucao_inicio",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Trilha Operações",
+    "description": "",
+    "owner": "Eduardo Curti",
+    "supports": [],
+    "area": "rh",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "fa11976b-ab75-4fde-9406-c9d72876eeb4",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  },
+  {
+    "title": "Pagamento OnDemand",
+    "description": "",
+    "owner": "Eduardo Curti",
+    "supports": [],
+    "area": "rh",
+    "score": 3,
+    "urgency": "baixa",
+    "status": "cinza",
+    "progress": 0,
+    "update": "",
+    "next_step": "",
+    "deadline": "2026-30-05",
+    "last_update_at": "2026-04-27T18:36:24.999Z",
+    "id": "4c13e400-1594-493b-95e8-243661e75354",
+    "created_at": "2026-04-27T18:36:29.438Z",
+    "stage": "nao_iniciado",
+    "deadline_admin": "2026-30-05",
+    "deadline_owner": "2026-30-05"
+  }
+];
+const PEOPLE = {
+  "Ana Cristina": {
+    "role": "Head Operações",
+    "phone": "5511911856425",
+    "email": "ana.aires@cabanaburger.com.br"
+  },
+  "Eduardo Curti": {
+    "role": "Ger. Remun.",
+    "phone": "5511976582780",
+    "email": "eduardo.curti@cabanaburger.com.br"
+  },
+  "Felipe Carmelo": {
+    "role": "Ger. P&D/Qualid.",
+    "phone": "5511984132935",
+    "email": "felipe@cabanaburger.com.br"
+  },
+  "Beatriz Vieira": {
+    "role": "Ger. MKT",
+    "phone": "5511989623127",
+    "email": "beatriz.vieira@cabanaburger.com.br"
+  },
+  "Madalena Medeiros": {
+    "role": "Head Juridico",
+    "phone": "5511974730424",
+    "email": "madalena@cabanaburger.com.br"
+  },
+  "Rodrigo Muzetti": {
+    "role": "Ger. Revenue",
+    "phone": "5511960990267",
+    "email": "rodrigo.mieldazis@cabanaburger.com.br"
+  },
+  "Evandro Borovicz": {
+    "role": "Head Manutenção",
+    "phone": "5511991488668",
+    "email": "evandro@cabanaburger.com.br"
+  },
+  "Renata Moraes": {
+    "role": "CX",
+    "phone": "5511972823858",
+    "email": "renata.moraes@cabanaburger.com.br"
+  },
+  "Silvana Novais": {
+    "role": "Ger. DHO",
+    "phone": "5511981599516",
+    "email": "silvana.novais@cabanaburger.com.br"
+  },
+  "Shi": {
+    "role": "Head Tech",
+    "phone": "5511971110302",
+    "email": "shi@cabanaburger.com.br"
+  },
+  "Matheus Teoro": {
+    "role": "Ger. Supply",
+    "phone": "5516981827447",
+    "email": "matheus@cabanaburger.com.br"
+  },
+  "Marcio Sernaglia": {
+    "role": "Ger. Produção",
+    "phone": "5511910326172",
+    "email": "marcio.sernaglia@cabanaburger.com.br"
+  },
+  "Luis Springman": {
+    "role": "Ger. Franquias",
+    "phone": "5511969801530",
+    "email": "luis.springman@cabanaburger.com.br"
+  },
+  "Andre Martins": {
+    "role": "FP&A",
+    "phone": "5521982754196",
+    "email": "andre.martins@cabanaburger.com.br"
+  },
+  "Eloa Pinhata": {
+    "role": "Tesouraria",
+    "phone": "5519998066414",
+    "email": "eloa.pinhata@cabanaburger.com.br"
+  },
+  "VAGO": {
+    "role": "",
+    "phone": "",
+    "email": ""
+  },
+  "Áquiza Souza": {
+    "role": "Delivery OPS",
+    "phone": "5511942977369",
+    "email": "aquiza@cabanaburger.com.br"
+  },
+  "roberto": {
+    "role": "",
+    "phone": "",
+    "email": ""
+  }
+};
+
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = cls || '';
+  div.textContent = msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function doImport() {
+  const btn = document.getElementById('btnImport');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // 1) Verifica se a tabela está mesmo vazia (segurança)
+  log('Verificando tabela projetos_hub...');
+  const { count, error: countErr } = await sb.from('projetos_hub').select('*', { count: 'exact', head: true });
+  if (countErr) { log('Erro ao verificar: ' + countErr.message, 'err'); btn.disabled = false; btn.textContent = '▶ Tentar de novo'; return; }
+  log('Tabela atualmente tem ' + count + ' registros', 'ok');
+
+  if (count > 0) {
+    if (!confirm('A tabela já tem ' + count + ' registros. Continuar mesmo assim? (Cancelar = parar)')) {
+      log('Cancelado pelo usuário.');
+      btn.disabled = false; btn.textContent = '▶ Restaurar agora';
+      return;
+    }
+  }
+
+  // 2) Insere projetos (em lotes de 10 pra não estourar limite)
+  log('Inserindo ' + PROJECTS.length + ' projetos...');
+  let inseridos = 0, erros = 0;
+  for (let i = 0; i < PROJECTS.length; i += 10) {
+    const lote = PROJECTS.slice(i, i + 10);
+    const { data, error } = await sb.from('projetos_hub').insert(lote).select();
+    if (error) {
+      log('Erro no lote ' + (i/10+1) + ': ' + error.message, 'err');
+      erros += lote.length;
+    } else {
+      inseridos += data.length;
+      log('Lote ' + (i/10+1) + ': ' + data.length + ' projetos OK', 'ok');
+    }
+  }
+
+  // 3) Insere as pessoas via projetos_hub_settings
+  log('Salvando pessoas (' + Object.keys(PEOPLE).length + ')...');
+  const { error: peopleErr } = await sb.from('projetos_hub_settings').upsert({
+    key: 'people',
+    value: PEOPLE
+  }, { onConflict: 'key' });
+  if (peopleErr) {
+    log('Erro ao salvar pessoas: ' + peopleErr.message, 'err');
+    log('(Não tem problema — você pode recadastrar manualmente nas Configurações)', '');
+  } else {
+    log('Pessoas salvas ✓', 'ok');
+  }
+
+  log('---');
+  log('FINALIZADO: ' + inseridos + ' projetos restaurados, ' + erros + ' erros', inseridos === PROJECTS.length ? 'ok' : 'err');
+  log('Agora abre https://azevedori-rgb.github.io/cabana-guia/projetos-hub.html e confere se os projetos voltaram!');
+  btn.textContent = '✓ Concluído';
+}
+</script>
+</body>
+</html>
