@@ -487,10 +487,12 @@ async function flushSync(opts){opts=opts||{};if(!supaOn()||syncing)return;if(!op
     const rows=[];
     for(const id of ids){const c=state.lojasCfg.find(x=>x.id===id);if(!c)continue;
       let data=cfgSnapshot(c);
-      if(!opts.fast){try{const cl=await supaGet('cabana_escalas?select=data,updated_at&id=eq.'+encodeURIComponent(id));const row=cl[0];
+      if(!opts.fast){try{const cl=await supaGet('cabana_escalas?select=data,updated_at&id=eq.'+encodeURIComponent(id));const row=cl[0];if(row)cloudRows[id]=row;
         if(row&&row.updated_at&&row.updated_at!==c._cloudAt){const merged=mergeCfg(data,row.data);Object.assign(c,merged);data=cfgSnapshot(c);localStorage.setItem(LS_KEY,JSON.stringify(state));}}catch(e){console.warn('merge',e);}}
+      else if(cloudRows[id]&&cloudRows[id].data){const merged=mergeCfg(data,cloudRows[id].data);Object.assign(c,merged);data=cfgSnapshot(c);} // envio rápido (aba fechando): mescla com a última cópia da nuvem conhecida
+      else{dirty.cfg.add(id);persistDirty();continue;} // sem cópia da nuvem para mesclar: NÃO sobrescreve às cegas — fica pendente e é mesclado na próxima abertura
       const at=new Date().toISOString();c._cloudAt=at;rows.push({id:c.id,loja:c.loja,data,updated_at:at});}
-    if(rows.length)await supaUpsert('cabana_escalas',rows,opts.fast);
+    if(rows.length)await supaUpsert('cabana_escalas',rows,opts.fast);rows.forEach(r=>{cloudRows[r.id]={data:r.data,updated_at:r.updated_at};});persistDirty();
     for(const id of dels)await supaDel('cabana_escalas',id);
     if(doCfg){if(!opts.fast)await mergeConfigFromCloud();const at=new Date().toISOString();state._cloudCfgAt=at;await supaUpsert('cabana_escalas_config',[{id:'global',data:configSnapshot(),updated_at:at}],opts.fast);}
     const t=new Date();setSync('ok','● nuvem · '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0'));
@@ -498,14 +500,20 @@ async function flushSync(opts){opts=opts||{};if(!supaOn()||syncing)return;if(!op
   finally{syncing=false;if(dirty.cfg.size||dirty.del.size||dirty.config)queueSync();}
 }
 // antes de fechar/ocultar a aba: grava o que estiver pendente sem esperar (keepalive)
-window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&(dirty.cfg.size||dirty.del.size||dirty.config)){clearTimeout(syncTimer);flushSync({fast:true});}});
+window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&(dirty.cfg.size||dirty.del.size||dirty.config)){clearTimeout(syncTimer);flushSync({skipCheck:true});}});
 window.addEventListener('beforeunload',()=>{if(dirty.cfg.size||dirty.del.size||dirty.config){clearTimeout(syncTimer);flushSync({fast:true});}});
 // ao abrir uma loja, busca a versão mais recente da nuvem (se não houver alteração local pendente dela)
 async function refreshCfg(id){if(!supaOn())return;const c=state.lojasCfg.find(x=>x.id===id);if(!c||dirty.cfg.has(id)||syncing)return;
-  try{const cl=await supaGet('cabana_escalas?select=data,updated_at&id=eq.'+encodeURIComponent(id));const row=cl[0];if(!row||!row.updated_at||row.updated_at===c._cloudAt||dirty.cfg.has(id))return;
+  try{const cl=await supaGet('cabana_escalas?select=data,updated_at&id=eq.'+encodeURIComponent(id));const row=cl[0];if(row)cloudRows[id]=row;if(!row||!row.updated_at||row.updated_at===c._cloudAt||dirty.cfg.has(id))return;
     const i=state.lojasCfg.findIndex(x=>x.id===id);state.lojasCfg[i]={...row.data,_cloudAt:row.updated_at};localStorage.setItem(LS_KEY,JSON.stringify(state));
     if(cur&&(cur._cfg?cur._cfg.id:cur.id)===id){if(cur._cfg)cur=genMonth(state.lojasCfg[i],cur.ano,cur.mes);else if(cur._mesVersao)cur=wrapMes(state.lojasCfg[i],cur._mesVersao.y,cur._mesVersao.m);else cur=state.lojasCfg[i];}render();toast('Escala atualizada com a versão mais recente da nuvem');}catch(e){console.warn('refresh',e);}}
-function markDirty(id){if(id)dirty.cfg.add(id);else{state.lojasCfg.forEach(c=>dirty.cfg.add(c.id));}dirty.config=true;}
+async function sincronizarAntes(id){ // busca a loja na nuvem e mescla no local antes de uma ação de status; devolve false se a nuvem estiver fora do ar
+  if(!supaOn())return true;const c=state.lojasCfg.find(x=>x.id===id);if(!c)return false;
+  try{const cl=await supaGet('cabana_escalas?select=data,updated_at&id=eq.'+encodeURIComponent(id));const row=cl[0];if(row){cloudRows[id]=row;if(row.updated_at!==c._cloudAt){const merged=mergeCfg(cfgSnapshot(c),row.data);Object.assign(c,merged);c._cloudAt=row.updated_at;localStorage.setItem(LS_KEY,JSON.stringify(state));}}
+    if(cur&&cur._cfg&&cur._cfg.id===id)cur=genMonth(c,cur.ano,cur.mes);return true;}catch(e){console.warn('sync antes',e);return false;}}
+function markDirty(id){if(id)dirty.cfg.add(id);else{state.lojasCfg.forEach(c=>dirty.cfg.add(c.id));}dirty.config=true;persistDirty();}
+const LS_DIRTY='cabana_dirty_v1';function persistDirty(){try{localStorage.setItem(LS_DIRTY,JSON.stringify([...dirty.cfg]));}catch(e){}}
+const cloudRows={}; // última cópia da nuvem vista por loja (id → {data,updated_at}) — usada para mesclar até no envio rápido ao fechar a aba
 async function supaLoad(){ // carrega a nuvem para o state; se a nuvem estiver vazia e houver dados locais, sobe os locais
   if(!supaOn()){setSync('off','● local (sem nuvem)');fixMorumbiReforco();fixLiderancaDomingo();migrarLojasBase();render();return;}
   setSync('busy','● carregando…');
@@ -513,7 +521,11 @@ async function supaLoad(){ // carrega a nuvem para o state; se a nuvem estiver v
     const [rows,cfgRows]=await Promise.all([supaGet('cabana_escalas?select=id,loja,data,updated_at'),supaGet('cabana_escalas_config?select=id,data,updated_at')]);
     const remoteCfg=(cfgRows[0]||{}).data;state._cloudCfgAt=(cfgRows[0]||{}).updated_at||null;
     if(rows.length){
-      state.lojasCfg=rows.map(r=>({...r.data,_cloudAt:r.updated_at}));
+      let pend=[];try{pend=JSON.parse(localStorage.getItem(LS_DIRTY)||'[]');}catch(e){}const locais=state.lojasCfg||[];
+      state.lojasCfg=rows.map(r=>{cloudRows[r.id]={data:r.data,updated_at:r.updated_at};const loc=pend.includes(r.id)?locais.find(c=>c.id===r.id):null;
+        if(loc){dirty.cfg.add(r.id);return {...mergeCfg(cfgSnapshot(loc),r.data),_cloudAt:r.updated_at};} // alterações que não chegaram à nuvem (aba fechada antes de enviar) são mescladas, não perdidas
+        return {...r.data,_cloudAt:r.updated_at};});
+      locais.forEach(c=>{if(pend.includes(c.id)&&!rows.some(r=>r.id===c.id))dirty.cfg.add(c.id);});if(dirty.cfg.size){state.lojasCfg.push(...locais.filter(c=>dirty.cfg.has(c.id)&&!state.lojasCfg.some(x=>x.id===c.id)));queueSync();}
       if(remoteCfg){state.contratos=Object.assign({},state.contratos,remoteCfg.contratos||{});state.lojas=remoteCfg.lojas||state.lojas;state.adminSenha=remoteCfg.adminSenha||state.adminSenha;if(remoteCfg.usuarios)state.usuarios=remoteCfg.usuarios;if(remoteCfg.travas)state.travas=remoteCfg.travas;if(remoteCfg.base&&remoteCfg.base.lojas)state.base=remoteCfg.base;state._delUsuarios=remoteCfg._delUsuarios||[];state._delLojas=remoteCfg._delLojas||[];state.appVersaoNuvem=remoteCfg.appVersao||null;if(verNum(APP_VERSAO)>verNum(state.appVersaoNuvem))dirty.config=true;if(remoteCfg.curvas)state.curvas=remoteCfg.curvas;}
       ensureContratos();
       localStorage.setItem(LS_KEY,JSON.stringify(state));
@@ -624,14 +636,15 @@ function restaurarMes(j){ // recria a versão do mês a partir dos dias informad
     e.posicoes.forEach(p=>{const T=alvo[p.id];if(!T)return;for(let d=1;d<=n;d++){const k=key_(d);const want=T[k];if(!want)continue;const got=p.dias[k]||{tipo:'VAZIO'};const same=want.tipo==='FOLGA'?got.tipo==='FOLGA':(got.tipo==='T'&&got.e===want.e&&got.s===want.s);
       if(!same){(cfg.excecoes[k]=cfg.excecoes[k]||{})[p.id]=norm_(want);diff++;nexc++;}}});
     if(!diff)break;}
-  cfg.status=cfg.status||{};cfg.status[YM]='rascunho';save(true);closeModal();
+  cfg.status=cfg.status||{};cfg.status[YM]='rascunho';save({cfg:cfg.id});closeModal();
   if(view.name!=='home')openNomes(cfg.id,y,m);else render();toast(`${cfg.loja} · ${MESES[m]} ${y} restaurada: ${arr.length} posições, ${nexc} ajuste(s) pontual(is)`);}
 function exportBackup(){const blob=new Blob([JSON.stringify({exportadoEm:new Date().toISOString(),state:{...state}},null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);const t=new Date();a.download=`escalas-cabana-backup-${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}.json`;a.click();}
-function importBackup(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);const st=j.state||j;if(!st.lojasCfg)throw new Error('formato');if(!confirm(`Importar ${st.lojasCfg.length} loja(s) e substituir os dados atuais?`))return;state=st;state.lojasCfg=state.lojasCfg||[];save(true);closeModal();view={name:'home'};render();toast('Backup importado');}catch(e){toast('Arquivo inválido');}};r.readAsText(f);}
+function importBackup(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);const st=j.state||j;if(!st.lojasCfg)throw new Error('formato');if(!confirm(`Importar ${st.lojasCfg.length} loja(s) e substituir os dados atuais?`))return;state=st;state.lojasCfg=state.lojasCfg||[];save(true);markDirty();closeModal();view={name:'home'};render();toast('Backup importado');}catch(e){toast('Arquivo inválido');}};r.readAsText(f);}
 
 let state=load();
-function ensureContratos(){const d={CLT:{horas:42,pausa:60},'CLT 6x1':{horas:44,pausa:60},PJ:{horas:44,pausa:60},Outro:{horas:40,pausa:0}};state.contratos=state.contratos||{};Object.entries(d).forEach(([k,v])=>{if(!state.contratos[k])state.contratos[k]=v;});}
-function ctOf(p){return state.contratos[p.contrato]||state.contratos.CLT||{horas:42,pausa:60};}
+function ensureContratos(){const d={CLT:{horas:42,pausa:60},'CLT 6x1':{horas:44,pausa:60},PJ:{horas:44,pausa:60},'PJ 6x1':{horas:44,pausa:60},Outro:{horas:40,pausa:0}};state.contratos=state.contratos||{};Object.entries(d).forEach(([k,v])=>{if(!state.contratos[k])state.contratos[k]=v;});}
+const HORAS_FORMATO={'5x2':42,'6x1':44}; // regra da rede: a meta de horas é do FORMATO (5x2 = 42h, 6x1 = 44h), qualquer que seja o rótulo do contrato (CLT/PJ)
+function ctOf(p){const ct=state.contratos[p.contrato]||state.contratos.CLT||{horas:42,pausa:60};const h=HORAS_FORMATO[p.formato];return h?{...ct,horas:h}:ct;}
 function load(){
   let s=null;
   try{s=JSON.parse(localStorage.getItem(LS_KEY));}catch(e){}
@@ -716,7 +729,9 @@ function lojasConhecidas(){return baseDe().lojas.map(l=>l.nome).sort((a,b)=>a.lo
 function defaultLojas(){return [];}
 function saveLocal(){localStorage.setItem(LS_KEY,JSON.stringify(state));queueSync();} // grava sem marcar tudo como alterado (quem chama já marcou dirty.cfg / dirty.config)
 function save(all){localStorage.setItem(LS_KEY,JSON.stringify(state));
-  if(all){markDirty();}else{const id=(cur&&(cur._cfg?cur._cfg.id:cur.id))||(view&&view.id)||null;if(id&&state.lojasCfg.some(c=>c.id===id))dirty.cfg.add(id);else markDirty();dirty.config=true;}
+  // Só a loja em edição vai para a nuvem (nunca "todas"): empurrar cópias antigas de outras lojas era o que apagava nomes/edições feitos por outras pessoas.
+  if(all===true){dirty.config=true;}else if(all&&all.cfg){dirty.cfg.add(all.cfg);dirty.config=true;}else{const id=(cur&&(cur._cfg?cur._cfg.id:cur.id))||(view&&view.id)||null;if(id&&state.lojasCfg.some(c=>c.id===id))dirty.cfg.add(id);dirty.config=true;}
+  persistDirty();
   queueSync();}
 function uid(){return Math.random().toString(36).slice(2,9);}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
@@ -1167,18 +1182,18 @@ function minhasLojas(){ // gestor: só as lojas em que ele é o responsável (Ad
   return all.filter(c=>{const L=c.codigo?lojaBase(c.codigo):null;return L&&L.gestorId===auth.userId;});}
 function quem(){return auth&&auth.nome?auth.nome:(isAdmin()?'Admin':isGestor()?'Gestor':'Loja');}
 function podeImprimir(e){const c=e._cfg||e;return isStaff()||statusMes(c,e._ym||ym(e.ano,e.mes))==='aprovada';}
-function enviarAprovacao(){const c=cur._cfg,k=cur._ym;if(!podeMontar(cur)){toast('Este mês não está aberto para montagem');return;}
+async function enviarAprovacao(){if(!podeMontar(cur)){toast('Este mês não está aberto para montagem');return;}await sincronizarAntes(cur._cfg.id);const c=cur._cfg,k=cur._ym;
   const st=quadroStatus(c,cur.ano,cur.mes);const probs=validarMes(cur);const m=document.getElementById('modal');
   if((st&&st.over)||probs.length){m.innerHTML=`<div class="modal" style="max-width:640px"><h2>Ainda não dá para enviar</h2><div class="hint">A escala só vai para aprovação quando estiver dentro das regras. Corrija os pontos abaixo:</div>${st&&st.over?`<div style="margin-top:8px;color:var(--bad);font-weight:800">✖ ${esc(quadroMsg(st))}</div>`:''}${probs.length?problemasHTML(probs):''}<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" onclick="closeModal()">Entendi</button></div></div>`;m.classList.add('show');return;}
   if(!confirm(`Enviar a escala de ${MESES[cur.mes]} ${cur.ano} para aprovação do gestor?\nDepois de enviada, horários e nomes ficam bloqueados até a resposta.`))return;
   setStatusMes(c,k,'enviada',{enviadaEm:new Date().toISOString(),enviadaPor:quem()});toast('Escala enviada para aprovação');}
-function aprovarMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) aprova');return;}const c=cur._cfg,k=cur._ym;const st=quadroStatus(c,cur.ano,cur.mes);
+async function aprovarMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) aprova');return;}if(!(await sincronizarAntes(cur._cfg.id))){if(!confirm('Não consegui conferir a versão mais recente na nuvem. Aprovar mesmo assim?'))return;}const c=cur._cfg,k=cur._ym;const st=quadroStatus(c,cur.ano,cur.mes);
   if(st&&st.over){alert('Não é possível aprovar: a escala está ACIMA da meta de quadro.\n'+quadroMsg(st));return;}
   const probs=validarMes(cur);if(probs.length&&!confirm(`A escala tem ${probs.length} ponto(s) fora das regras:\n\n`+probs.slice(0,8).map(x=>'• '+x.msg).join('\n')+(probs.length>8?'\n…':'')+'\n\nAprovar mesmo assim?'))return;
   setStatusMes(c,k,'aprovada',{aprovadaEm:new Date().toISOString(),aprovadaPor:quem()});toast('Escala aprovada');}
-function devolverMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) devolve');return;}const c=cur._cfg,k=cur._ym;const motivo=(prompt('Motivo da devolução (a loja vai ver):')||'').trim();if(!motivo)return;
+async function devolverMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) devolve');return;}await sincronizarAntes(cur._cfg.id);const c=cur._cfg,k=cur._ym;const motivo=(prompt('Motivo da devolução (a loja vai ver):')||'').trim();if(!motivo)return;
   setStatusMes(c,k,'devolvida',{devolvidaEm:new Date().toISOString(),devolvidaPor:quem(),motivo});toast('Escala devolvida à loja');}
-function desaprovarMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) desaprova');return;}const c=cur._cfg,k=cur._ym;
+async function desaprovarMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) desaprova');return;}await sincronizarAntes(cur._cfg.id);const c=cur._cfg,k=cur._ym;
   const motivo=(prompt(`DESAPROVAR a escala de ${MESES[cur.mes]} ${cur.ano}?\nEla deixa de valer: a loja não imprime mais, vê o motivo, corrige e envia de novo.\n\nMotivo (a loja vai ver):`)||'').trim();if(!motivo)return;
   setStatusMes(c,k,'devolvida',{devolvidaEm:new Date().toISOString(),devolvidaPor:quem(),motivo,desaprovada:true,aprovadaEm:null,aprovadaPor:null});toast('Escala desaprovada e devolvida à loja');}
 function reabrirMes(){if(!podeAprovar(cur._cfg)){toast('Só o gestor responsável por esta loja (ou o Admin) reabre');return;}const c=cur._cfg,k=cur._ym;if(!confirm('Reabrir a escala para montagem? Ela deixa de estar aprovada.'))return;setStatusMes(c,k,'rascunho',{reabertaEm:new Date().toISOString(),reabertaPor:quem()});toast('Escala reaberta');}
@@ -1403,7 +1418,7 @@ function feriadosHTML(e){
 function ym(y,m){return `${y}-${String(m+1).padStart(2,'0')}`;}
 function addDays(dt,n){return new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()+n);}
 function dkey(dt){return key(dt.getFullYear(),dt.getMonth(),dt.getDate());}
-const APP_VERSAO='v107 · 25/11/2026'; // atualizado a cada versão publicada
+const APP_VERSAO='v109 · 25/11/2026'; // atualizado a cada versão publicada
 {const v=document.getElementById('verBadge');if(v)v.textContent=APP_VERSAO;}
 const LOGO_SYM='<svg class="plogo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="388.0 370.3 304.0 339.4"> <path fill="#00630F" d="M 461.17 502.32 C 460.89 502.70 456.75 503.81 455.48 504.59 C 449.33 508.35 445.48 514.76 443.99 521.72 C 442.5 528.69 442.64 536.89 446.43 542.71 C 447.07 543.67 449.23 545.72 449.21 546.94 C 449.21 547.85 448.38 548.91 447.96 549.67 C 446.34 552.64 445.16 555.34 444.79 558.77 C 444.30 563.55 444.23 570.13 446.55 574.49 C 449.29 579.66 455.82 583.41 461.65 583.17 C 461.76 583.17 462.78 583.17 462.80 583.08 C 457.23 602.99 472.67 619.84 489.19 628.46 C 531.92 650.78 603.25 646.53 635.66 607.75 C 640.81 601.58 645.21 594.63 648.28 587.18 C 652.19 577.62 653.76 565.76 665.27 562.11 C 671.71 560.08 679.48 562.28 683.87 567.41 C 692.28 577.22 690.22 594.50 688.22 606.28 C 686.02 619.18 681.12 631.54 674.26 642.65 C 660.28 665.30 638.63 682.81 614.67 693.94 C 601.75 699.96 587.91 704.19 573.78 706.11 C 457.47 721.86 366.13 616.67 395.56 503.08 C 417.24 419.40 495.85 364.32 582.24 373.26 C 630.08 378.21 690.92 415.18 677.63 471.19 C 664.80 525.28 580.93 517.76 584.10 462.55 C 584.20 460.70 584.52 458.91 584.93 457.13 C 586.53 450.02 582.30 442.87 575.34 440.80 C 550.04 433.22 521.19 436.56 498.98 450.94 C 482.49 461.64 469.92 476.12 463.01 494.70 C 462.37 496.36 461.48 501.91 461.16 502.35 Z M 461.17 502.32 "/> <path fill="#FF5D31" d="M 565.41 449.92 C 570.23 450.93 573.53 455.39 573.16 460.31 C 571.79 479.21 578.71 497.61 594.81 508.87 C 602.16 514.00 614.30 518.40 623.20 519.18 C 626.62 519.48 642.33 518.00 643.19 518.54 C 644.98 519.67 645.23 533.11 644.78 535.51 C 644.42 537.49 643.32 538.10 641.40 538.25 C 637.05 538.62 619.07 528.99 613.14 526.98 C 582.38 516.55 568.57 544.24 540.19 537.05 C 519.42 531.79 510.80 518.33 486.35 527.18 C 480.48 529.30 462.62 539.14 457.90 538.21 C 454.48 537.53 454.97 527.86 455.22 524.87 C 455.60 520.71 457.65 516.36 461.54 514.48 C 464.03 513.26 469.31 513.52 470.51 512.04 C 471.03 511.37 473.98 498.38 475.15 495.42 C 488.66 461.19 529.93 442.53 565.41 449.92 "/> <path fill="#FF5D31" d="M 479.44 584.47 C 480.65 584.14 482.07 583.97 483.71 583.96 C 525.81 583.96 567.88 583.90 609.96 583.76 C 615.53 583.74 623.30 583.40 625.87 589.53 C 628.13 594.90 624.65 601.41 621.30 605.51 C 595.17 637.36 507.23 637.90 480.27 607.77 C 473.84 600.57 469.20 587.23 479.44 584.47 "/> <path fill="#FF5D31" d="M 642.71 571.18 C 641.83 572.29 640.53 572.98 638.75 573.00 C 633.68 573.04 627.80 569.91 623.15 568.08 C 618.92 566.42 614.68 564.44 610.28 563.33 C 581.67 556.08 566.19 579.88 536.58 571.85 C 517.41 566.64 509.16 557.79 487.29 563.83 C 481.61 565.39 465.23 573.28 461.03 573.13 C 455.59 572.91 454.46 567.40 454.73 562.91 C 454.97 558.74 455.41 554.65 459.53 552.64 C 463.21 550.85 467.38 549.56 471.26 548.03 C 475.47 546.39 479.90 545.05 484.21 543.70 C 492.81 541.00 501.87 539.54 510.78 541.47 C 523.23 544.19 534.78 552.16 548.13 552.68 C 564.88 553.34 578.84 541.74 594.42 540.50 C 602.92 539.83 611.33 542.07 619.25 544.91 C 623.33 546.37 627.78 547.91 631.82 549.54 C 635.28 550.95 639.58 552.03 642.68 554.09 C 645.92 556.27 644.43 564.04 644.13 567.24 C 643.99 568.79 643.54 570.17 642.73 571.19 Z M 642.71 571.18 "/> </svg>';
 const DOM_EPOCH=new Date(2026,0,5); // segunda-feira de referência para as regras de domingo por semana (alternado / a cada 4)
@@ -1415,7 +1430,7 @@ function lidBalance(cfg,lid,rows){ // rows: {pid:[7 células]} — ajusta cada l
   const cov=(pid,w,t)=>lid.some(q=>q.id!==pid&&(()=>{const c=rows[q.id][w];if(!c||c.tipo!=='T')return false;let e=toMin(c.e),b=toMin(c.s);if(e==null||b==null)return false;if(b<=e)b+=1440;return e<=t&&b>t;})());
   const AF=w=>{const hl=cfg.hLoja[w]||{};const A=toMin(hl.a),F0=toMin(hl.f);if(A==null||F0==null)return null;return {A,F:F0<=A?F0+1440:F0};};
   lid.forEach(p=>{
-    const ct=(cfg._contratos&&cfg._contratos[p.contrato])||{horas:44,pausa:60};const alvo=(ct.horas||44)*60,pz=ct.pausa||0;
+    const ct0=(cfg._contratos&&cfg._contratos[p.contrato])||{horas:44,pausa:60};const ct={...ct0,horas:HORAS_FORMATO[p.formato]||ct0.horas||44};const alvo=ct.horas*60,pz=ct.pausa||0;
     // dias editados à mão (exceção de horário/folga): o balanceamento é feito como se eles tivessem o padrão semanal; depois a edição volta por cima — assim 1h a mais digitada aparece como 45h, e não é "engolida" pelo gerador
     const excW=[0,1,2,3,4,5,6].filter(w=>{const c=rows[p.id][w];return c&&c._exc&&(c.tipo==='T'||c.tipo==='FOLGA');});const excSave={};excW.forEach(w=>{excSave[w]=rows[p.id][w];rows[p.id][w]={...((p.semana||[])[w]||{tipo:'FOLGA'})};});
     const wk=[0,1,2,3,4,5,6].filter(w=>{const c=rows[p.id][w];return c&&c.tipo==='T'&&!c._exc;});if(!wk.length)return;
@@ -1849,7 +1864,7 @@ function doDup(id){
   state.lojas=[...new Set([...(state.lojas||[]),loja])];state.lojasCfg.push(c);
   if(reg!=='keep'){c.posicoes.forEach(p=>{if(p.secao==='lideranca')return;p.formato=reg;p.contrato=reg==='6x1'?'CLT 6x1':'CLT';});
     cur=c;view={name:'semana',id:c.id};const _confirm=window.confirm;window.confirm=()=>true;try{secoesDo(c).filter(x=>x!=='lideranca'&&c.posicoes.some(p=>p.secao===x)).forEach(x=>autoPadrao(x));}finally{window.confirm=_confirm;}}
-  save(true);closeModal();openSemana(c.id);toast(`Espelho de ${loja} criado a partir de ${src.loja}${reg!=='keep'?' · regime '+reg:''}`);
+  save({cfg:c.id});closeModal();openSemana(c.id);toast(`Espelho de ${loja} criado a partir de ${src.loja}${reg!=='keep'?' · regime '+reg:''}`);
 }
 
 /* ========================================================================
@@ -1965,7 +1980,7 @@ function importarCurva(f){if(!f)return;if(typeof XLSX==='undefined'){const sc=do
 async function openContratos(){
   if(supaOn()&&!dirty.config)await mergeConfigFromCloud(); // traz usuários/travas/lojas mais recentes antes de editar
   const m=document.getElementById('modal');
-  m.innerHTML=`<div class="modal"><h2>Parâmetros de Contrato</h2><div class="hint">Horas semanais contratadas e pausa diária (minutos) descontada do tempo em loja.</div>
+  m.innerHTML=`<div class="modal"><h2>Parâmetros de Contrato</h2><div class="hint">Pausa diária (minutos) descontada do tempo em loja, por modelo. <b>A meta de horas semanais segue o formato da posição</b> — 5x2 = 42h, 6x1 = 44h — qualquer que seja o rótulo (CLT ou PJ); o valor "Horas/semana" abaixo só vale para outros formatos.</div>
     <table><tr><th>Modelo</th><th>Horas/semana</th><th>Pausa/dia (min)</th></tr>
     ${Object.entries(state.contratos).map(([k,v])=>`<tr><td><b>${k}</b></td><td><input type="number" step="0.5" value="${v.horas}" onchange="state.contratos['${k}'].horas=+this.value"></td><td><input type="number" step="5" value="${v.pausa}" onchange="state.contratos['${k}'].pausa=+this.value"></td></tr>`).join('')}</table>
     <div class="hint"><b>Regra da rede:</b> CLT = 5x2, 42h/semana (8h24 trabalhadas + 1h de pausa = 9h24 em loja por dia).</div>
